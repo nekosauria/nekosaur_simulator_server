@@ -11,6 +11,8 @@ resources/model/
 # 忽略真實的 config.ini
 config.ini
 
+# db file
+sqlite.db
 # 日誌檔案
 *.log
 audit.log*
@@ -29,3 +31,10 @@ __pycache__/
 venv/
 env/
 *.env
+.idea/.gitignore
+.idea/misc.xml
+.idea/modules.xml
+.idea/nekosaur_simulator.iml
+.idea/vcs.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/inspectionProfiles/Project_Default.xml
