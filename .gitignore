@@ -2,7 +2,6 @@
 .DS_Store                # macOS
 Thumbs.db                # Windows
 desktop.ini              # Windows
-.idea/                   # IDE 設定檔 (如 JetBrains IDEs)
 .vscode/                 # Visual Studio Code 設定檔
 
 # ML Model File
@@ -31,6 +30,9 @@ __pycache__/
 venv/
 env/
 *.env
+
+# IDE
+.idea/                   # IDE 設定檔 (如 JetBrains IDEs)
 .idea/.gitignore
 .idea/misc.xml
 .idea/modules.xml
@@ -38,3 +40,5 @@ env/
 .idea/vcs.xml
 .idea/inspectionProfiles/profiles_settings.xml
 .idea/inspectionProfiles/Project_Default.xml
+.idea/nekosaur_simulator_server.iml
+.idea/workspace.xml
