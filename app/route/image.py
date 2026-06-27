@@ -24,23 +24,40 @@ def upload_image():
     if error:
         return jsonify({"success": False, "error": error}), status
 
+    detect_model = request.form.get("detect_model", "yolo")
+    transform_model = request.form.get("transform_model", "sd_image_variations_transform")
+
+    print(detect_model, transform_model)
+
     # 檢查上傳圖是否有貓
 
     # save user images with jpg
 
     # vector search similar image
-    time.sleep(1)
+    time.sleep(5)
 
     # style transform two images
     return jsonify({
-        "success": True, # ← 新增
-        "detector_image":f'images/thecatapi/ora/9c2e9a67525fd5e01bee60516b653d3a_clh.jpg',
+        "success": True,
+        "detector_image": url_for(
+            'static',
+            filename=f'images/user_input/detect/orange_cat.png',
+            _external=True
+        ),
         "similar_image": url_for(
             'static',
             filename=f'images/thecatapi/ora/9c2e9a67525fd5e01bee60516b653d3a_clh.jpg',
             _external=True
         ),
-        "detector_image_transform": f'images/thecatapi/ora/9c2e9a67525fd5e01bee60516b653d3a_clh.jpg',
-        "similar_image_transform": f'images/thecatapi/ora/9c2e9a67525fd5e01bee60516b653d3a_clh.jpg',
+        "origin_image_transform": url_for(
+            'static',
+            filename=f'images/user_input/output/sd_image_variations_20260526_152735.png',
+            _external=True
+        ),
+        "similar_image_transform": url_for(
+            'static',
+            filename=f'images/thecatapi/output/sd_image_variations_20260627_194647.png',
+            _external=True
+        ),
     }), 200
 
