@@ -67,13 +67,13 @@ nekosaur_simulator/
       ├─ YOLO Match Check
       │   • Object detection — confirm image contains a cat
       │
-      ├─ Similarity Detection
-      │   • Query MariaDB Vector Index
-      │   • Retrieve most similar cat image
-      │
       ├─ Save to Storage
       │   • Write user image to FTP
       │   • Save metadata to MariaDB
+      │
+      ├─ Similarity Detection
+      │   • Query MariaDB Vector Index
+      │   • Retrieve most similar cat image
       │
       ├─ Diffusers Style Transfer
       │   • Load user image + similar image

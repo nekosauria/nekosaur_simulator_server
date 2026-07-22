@@ -3,17 +3,8 @@ import torch
 import os
 from datetime import datetime
 
-ALLOWED_EXTENSIONS = {
-    # 一般常見格式
-    'jpg', 'jpeg', 'png',
-    'webp', 'bmp',
-    # iPhone (iOS)
-    'heic', 'heif',
-    # Android
-    'avif',
-    # RAW 格式 (部分高階手機)
-    'dng',
-}
+from const.image_const import ImageConst
+
 
 def validate_image(request_files):
     """
@@ -30,8 +21,8 @@ def validate_image(request_files):
         return None, "未選擇檔案", 400
 
     ext = file.filename.rsplit('.', 1)[-1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        return None, f"不支援的圖片格式，請上傳 {', '.join(ALLOWED_EXTENSIONS)}", 400
+    if ext not in ImageConst.ALLOWED_EXTENSIONS:
+        return None, f"不支援的圖片格式，請上傳 {', '.join(ImageConst.ALLOWED_EXTENSIONS)}", 400
 
     return file, None, None
 
@@ -73,9 +64,9 @@ def get_ml_device():
 
 
 
-def save_image_with_timestamp(image, output_dir: str, prefix: str = "result") -> None:
+def save_image_with_timestamp(image, output_dir: str, prefix: str = "result") -> str:
     """
-    將 PIL 圖片物件儲存至指定目錄，並自動加上時間戳記。不回傳任何路徑。
+    將 PIL 圖片物件儲存至指定目錄，並自動加上時間戳記。並回傳路徑。
     """
     # 自動建立不存在的資料夾，避免噴出 FileNotFoundError 錯誤
     os.makedirs(output_dir, exist_ok=True)
@@ -85,10 +76,10 @@ def save_image_with_timestamp(image, output_dir: str, prefix: str = "result") ->
 
     # 組合完整路徑：目錄 / 前綴_時間戳記.png
     filename = f"{prefix}_{timestamp}.png"
-    output_path = os.path.join(output_dir, filename)
+    transform_image_path = os.path.join(output_dir, filename)
 
     # 儲存圖片
-    image.save(output_path)
-    print(f"saved => {output_path}")
+    image.save(transform_image_path)
+    print(f"saved transform_image_path => {transform_image_path}")
 
-    pass
+    return transform_image_path
