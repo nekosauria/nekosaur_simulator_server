@@ -7,15 +7,13 @@ from PIL import Image
 
 from const.image_const import ImageConst
 from model.interface.base_detection_model import BaseDetectionModel
-from util.image_draw import get_color_by_label, make_line, draw_lines, draw_texts
+from util.image_draw import get_color_by_label, make_line, draw_lines, draw_texts, draw_detections
 
 
 class ImageDetectionService:
 
     def __init__(self, model: BaseDetectionModel):
         self._model = model
-        self._loaded = False
-
 
     def make_detect_image(self, file, model_type) -> tuple[dict, dict, str, str]:
         """
@@ -47,9 +45,6 @@ class ImageDetectionService:
         print(f"labels: {labels}")
 
         image = Image.open(input_path)
-        tags = []
-        tag_results = {}  # 紀錄每個標籤對應的信心分數
-        predict_list = {}  # 所有預測結果，給前端參考
         result_image = np.array(image.copy())  # 複製原圖作為繪圖畫布（RGB numpy array）
 
         # -----------------------------------------------------------
@@ -57,37 +52,10 @@ class ImageDetectionService:
         output = self._model.predict(image)  # ← 統一介面，與模型實作無關
         # -----------------------------------------------------------
 
-        # 開始畫框線
-        for box, label_idx, score in zip(output.boxes, output.labels, output.scores):
-            label_name = labels[label_idx]
-
-            # 不論分數，全部收入 predict_list（同標籤保留最高分）
-            if label_name not in predict_list or score > predict_list[label_name]:
-                predict_list[label_name] = round(float(score), 4)
-
-            # 【條件】信心分數需超過預測值就標記，且同一標籤不重複標記
-            if score > ImageConst.SCORE_THRESHOLD and labels[label_idx] not in tags:
-                print(f"score: {score:.4f}, label: {labels[label_idx]}")
-
-                # 產生框線顏色（BGR or RGB tuple）
-                color = get_color_by_label(label_idx)
-
-                # 計算適合圖片尺寸的框線粗細
-                line = make_line(result_image)
-
-                # 將 box tensor 轉為左上角 (c1) 與右下角 (c2) 的像素座標
-                c1 = (int(box[0]), int(box[1]))  # (x_min, y_min)
-                c2 = (int(box[2]), int(box[3]))  # (x_max, y_max)
-
-                # 在 result_image 上繪製偵測框
-                result_image = draw_lines(c1, c2, result_image, line, color)
-
-                # 在偵測框旁繪製文字標籤
-                result_image = draw_texts(result_image, line, c1, color, labels, label_idx)
-
-                # 記錄已處理的標籤與對應信心分數
-                tags.append(label_idx)
-                tag_results[labels[label_idx]] = round(float(score), 4)
+        # 畫物件偵測框線
+        tag_results, predict_list, result_image = draw_detections(
+            output, labels, result_image, ImageConst.SCORE_THRESHOLD
+        )
 
         # ✅ imwrite 前確認 result_image 是合法的 numpy array
         if result_image is None or not isinstance(result_image, np.ndarray) or result_image.size == 0:

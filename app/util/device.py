@@ -1,7 +1,7 @@
 import torch
 from typing import  Any
 
-def get_linux_device() -> Any:
+def get_gpu_device() -> Any:
     """
     針對 Linux 環境優化的四大平台硬體偵測
     優先序: NVIDIA/AMD (cuda) -> Intel Arc (xpu) -> Mac (mps) -> CPU

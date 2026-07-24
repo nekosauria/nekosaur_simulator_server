@@ -1,3 +1,5 @@
+from typing import override
+
 from diffusers import StableDiffusionImageVariationPipeline
 from PIL import Image
 from torchvision import transforms
@@ -16,15 +18,17 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         self.ref_point = ref_point
         self.pipe = None
 
+    @override
     @property
     def model_path(self) -> Path:
         return self._model_path
 
+    @override
     @property
     def name(self) -> str:
         return ImageConst.MODEL_SD_IMAGE_VARIATIONS
 
-
+    @override
     def load(self) -> None:
         self.pipe = StableDiffusionImageVariationPipeline.from_pretrained(
             str(self._model_path),
@@ -34,6 +38,7 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             requires_safety_checker=False
         ).to(self.device)
 
+    @override
     def generate(self, init_image_path: str, ref_image_path: str, output_dir: str) -> str:
         ora_img = resize_with_padding(Image.open(init_image_path).convert("RGB"))
         ref_img = resize_with_padding(Image.open(ref_image_path).convert("RGB"))

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, override
 
 from PIL.Image import Image
 from ultralytics import YOLO
@@ -19,23 +19,27 @@ class YoloDetectionModel(BaseDetectionModel):
         self._score_threshold = score_threshold
         self._labels = ImageConst.YOLO_LABELS
 
+    @override
     @property
     def model_path(self) -> Path:
         return self._model_path
 
+    @override
     @property
     def name(self) -> str:
         return "ultralytics.YOLO"
 
+    @override
     @property
     def labels(self) -> List[str]:
         return self._labels
 
+    @override
     def load(self) -> None:
         print(f"loading model from {self.model_path}, device: {self.device}")
         self._model = YOLO(str(self.model_path)).to(self.device)
 
-
+    @override
     def predict(self, image: Image) -> DetectionResult:
         if self._model is None:
             raise RuntimeError("模型尚未載入，請先呼叫 load()")

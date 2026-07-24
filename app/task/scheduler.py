@@ -47,10 +47,12 @@ def main():
         while True:
             time.sleep(10)
     except (KeyboardInterrupt, SystemExit) as k:
+        traceback.print_exc()
         scheduler.shutdown()
         logger.error("Scheduler shut down.")
         logger.error(f"Exception occurred: {k}", exc_info=True)
     except Exception as e:
+        traceback.print_exc()
         logger.error("Scheduler broken.")
         logger.error(f"Exception occurred: {e}", exc_info=True)
     finally:

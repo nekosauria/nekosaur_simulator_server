@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import List, override
 
 import torch
 import torchvision
@@ -18,18 +18,22 @@ class TorchDetectionModel(BaseDetectionModel):
         self._score_threshold = score_threshold
         self._labels = ImageConst.TORCH_LABELS
 
+    @override
     @property
     def model_path(self) -> Path:
         return self._model_path
 
+    @override
     @property
     def name(self) -> str:
         return "torchvision.models.detection.maskrcnn_resnet50_fpn"
 
+    @override
     @property
     def labels(self) -> List[str]:
         return self._labels
 
+    @override
     def load(self) -> None:
         print(f"loading model from {self.model_path}, device: {self.device}")
         raw = torch.load(self.model_path, weights_only=False)
@@ -37,6 +41,7 @@ class TorchDetectionModel(BaseDetectionModel):
         self._model = raw.to(self.device)
         self._model.eval()
 
+    @override
     def predict(self, image: Image) -> DetectionResult:
         if self._model is None:
             raise RuntimeError("模型尚未載入，請先呼叫 load()")

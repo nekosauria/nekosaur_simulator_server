@@ -3,9 +3,10 @@ from pathlib import Path
 
 class BaseTransformModel(ABC):
 
+    @property
     @abstractmethod
-    def load(self) -> None:
-        """啟動時載入模型至記憶體/GPU，只執行一次"""
+    def model_path(self) -> Path:
+        """取得模型路徑"""
         ...
 
     @property
@@ -14,10 +15,9 @@ class BaseTransformModel(ABC):
         """模型識別名稱"""
         ...
 
-    @property
     @abstractmethod
-    def model_path(self) -> Path:
-        """取得模型路徑"""
+    def load(self) -> None:
+        """啟動時載入模型至記憶體/GPU，只執行一次"""
         ...
 
     @abstractmethod

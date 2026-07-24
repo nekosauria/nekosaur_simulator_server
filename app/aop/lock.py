@@ -1,6 +1,8 @@
 import functools
 import sqlite3
 import time
+import traceback
+
 from util.sqlite import get_db
 
 
@@ -63,6 +65,7 @@ def _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurre
                     return row_id
 
         except sqlite3.Error as e:
+            traceback.print_exc()
             print(f"[❌ DB Error] {e}")
         finally:
             db.close()
@@ -85,6 +88,7 @@ def _release_lock(row_id):
             """, (row_id,))
         print(f"[🔓 LOCK RELEASED] 已釋放鎖 id={row_id}\n")
     except sqlite3.Error as e:
+        traceback.print_exc()
         print(f"[❌ RELEASE Error] {e}")
     finally:
         db.close()

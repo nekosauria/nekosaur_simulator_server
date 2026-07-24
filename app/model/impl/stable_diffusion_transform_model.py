@@ -1,3 +1,5 @@
+from typing import override
+
 from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers.utils import load_image
 
@@ -46,14 +48,17 @@ class StableDiffusionTransformModel(BaseTransformModel):
 
         self.pipe = None
 
+    @override
     @property
     def model_path(self) -> Path:
         return self._model_path
 
+    @override
     @property
     def name(self) -> str:
         return ImageConst.MODEL_STABLE_DIFFUSION
 
+    @override
     def load(self) -> None:
         # 1. preload model to memory
         self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
@@ -74,6 +79,7 @@ class StableDiffusionTransformModel(BaseTransformModel):
         self.pipe.set_ip_adapter_scale(self.ip_adapter_scale)
         print("=== 核心模型與權重已成功載入 GPU，準備就緒！ ===")
 
+    @override
     def generate(self, init_image_path: str, ref_image_path: str, output_dir: str) -> str:
         # load images
         init_image = load_image(init_image_path)

@@ -1,6 +1,8 @@
 import random
+
 import cv2
 import numpy as np
+
 
 
 # 💡 優化一：顏色生成改為「靜態映射字典」或「基於類別 ID 決定固定顏色」
@@ -90,3 +92,62 @@ def draw_texts(result_image: np.ndarray, line: int, c1: tuple, color: list, labe
         )
 
     return result_image
+
+
+
+def draw_detections(
+        output, labels: list[str], result_image: np.ndarray, score_threshold: float
+    ) -> tuple[dict, dict, np.ndarray]:
+    """
+    根據模型輸出，在圖片上繪製偵測框與標籤。
+
+    Args:
+        output: 模型推論結果（需含 boxes, labels, scores）
+        labels: 標籤清單
+        result_image: 待繪製的圖片（numpy array）
+        score_threshold: 信心分數門檻，超過才畫框標記
+
+    Returns:
+        tag_results: 有畫框標記的標籤與其信心分數
+        predict_list: 所有標籤的最高信心分數（不論有無畫框）
+        result_image: 繪製完成的圖片
+    """
+
+    tags = []
+    tag_results = {}
+    predict_list = {}
+
+    # 開始畫框線
+    for box, label_idx, score in zip(output.boxes, output.labels, output.scores):
+        label_idx = int(label_idx)
+        label_name = labels[label_idx]
+
+        # 不論分數，全部收入 predict_list（同標籤保留最高分）
+        if label_name not in predict_list or score > predict_list[label_name]:
+            predict_list[label_name] = round(float(score), 4)
+
+        # 【條件】信心分數需超過預測值就標記，且同一標籤不重複標記
+        if score > score_threshold and labels[label_idx] not in tags:
+            print(f"score: {score:.4f}, label: {labels[label_idx]}")
+
+            # 產生框線顏色（BGR or RGB tuple）
+            color = get_color_by_label(label_idx)
+
+            # 計算適合圖片尺寸的框線粗細
+            line = make_line(result_image)
+
+            # 將 box tensor 轉為左上角 (c1) 與右下角 (c2) 的像素座標
+            c1 = (int(box[0]), int(box[1]))  # (x_min, y_min)
+            c2 = (int(box[2]), int(box[3]))  # (x_max, y_max)
+
+            # 在 result_image 上繪製偵測框
+            result_image = draw_lines(c1, c2, result_image, line, color)
+
+            # 在偵測框旁繪製文字標籤
+            result_image = draw_texts(result_image, line, c1, color, labels, label_idx)
+
+            # 記錄已處理的標籤與對應信心分數
+            tags.append(label_idx)
+            tag_results[labels[label_idx]] = round(float(score), 4)
+
+    return tag_results, predict_list, result_image

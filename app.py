@@ -18,7 +18,6 @@ def index():
     # 前後端分離 , flask 只負責傳 backend jsonx
     return {"status": "Flask API Is Running" , "message": "Hello World"}
 
-
 def init_stage():
     #在 App 啟動時就把模型餵進記憶體
     print(f"app.root_path: {app.root_path}")
