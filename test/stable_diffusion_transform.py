@@ -3,20 +3,18 @@ from pathlib import Path
 import torch
 from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers.utils import load_image
-from util.common import common
 from datetime import datetime
 
 # =========================
 # config
 # =========================
 
-# get conf
-config = common.config
-ora_img = config.get('model', "user_ora_img")
-ref_img = config.get('model', "style_ref_img")
-out_img = config.get('model', "user_out_img")
-DIFFUSION_MODEL_PATH = Path(config.get('model', "stable_diffusion_model_path"))
-IP_ADAPTER_PATH = Path(f'{config.get('model', "ip_adapter_model_path")}')
+# get setting
+ora_img = '/Users/teddylai/Downloads/tmp/picture/brown_dog.jpeg'
+ref_img = '/Users/teddylai/Downloads/tmp/picture/cartoon_dog.jpeg'
+out_img = '/Users/teddylai/Downloads/result'
+DIFFUSION_MODEL_PATH = '/Users/teddylai/teddy_fetch/nas_workplace/side_project/nekosaur_simulator_server/resource/model/transform/stable-diffusion-v1-5'
+IP_ADAPTER_PATH ='/Users/teddylai/teddy_fetch/nas_workplace/side_project/nekosaur_simulator_server/resource/model/transform/IP-Adapter'
 
 # =========================
 # device
