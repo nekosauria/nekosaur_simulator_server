@@ -6,6 +6,7 @@ from model.interface.base_detection_model import BaseDetectionModel
 from model.impl.torch_detection_model import TorchDetectionModel
 from model.impl.yolo_detection_model import YoloDetectionModel
 from model.interface.base_model_factory import BaseModelFactory
+from util.common import common
 from util.device import get_gpu_device
 
 class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
@@ -17,14 +18,14 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
     def init_models(cls, root_path: str):
         """在 Flask App 啟動時，由全域呼叫此函式進行『冷啟動』加載"""
         print("=== 初始化全域 Detection 模型常駐記憶體 ===")
-
+        config = common.config
         # 自動辨識最佳硬體
         gpu_device = get_gpu_device()
 
 
 ########################################################################################################################
         # 預先載入 Torch 模型
-        torch_path = Path(root_path) / "resource/model/detect" / "maskrcnn_model.pt"
+        torch_path = Path(f'{config.get('model', "maskrcnn_model")}')
         torch_model = TorchDetectionModel(
             model_path=torch_path,
             score_threshold=ImageConst.SCORE_THRESHOLD,
@@ -37,7 +38,7 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
 
 ########################################################################################################################
         # 預先載入 YOLO 模型
-        yolo_path = Path(root_path) / "resource/model/detect" / "yolo11n.pt"
+        yolo_path = Path(f'{config.get('model', "yolo11n")}')
         yolo_model = YoloDetectionModel(
             model_path=yolo_path,
             score_threshold=ImageConst.SCORE_THRESHOLD,

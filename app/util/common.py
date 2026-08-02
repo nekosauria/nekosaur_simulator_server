@@ -2,6 +2,8 @@ from configparser import ConfigParser
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
+from pathlib import Path
+
 
 class Common:
     _instance = None
@@ -16,7 +18,7 @@ class Common:
 
     def _init(self):
         self._config = ConfigParser()
-        path = self._get_project_path('resource/config/config.ini')
+        path = Path(f'{self._get_project_path('resource/config/config.ini')}')
         files_read = self._config.read(path)
         if not files_read:
             raise FileNotFoundError(f"Config not found: {path}")

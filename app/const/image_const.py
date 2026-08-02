@@ -4,14 +4,12 @@ from pathlib import Path
 # 一般來說要 new object 時才會用到 self.var
 class ImageConst:
 
-    WEB_BASE_HOST = "0.0.0.0"
-    WEB_BASE_PORT = 5001
-    WEB_BASE_URL = "http://127.0.0.1:5001"
-
     # 💡 新增模型名稱常數
+    # detect
     MODEL_TORCH = "torch"
     MODEL_YOLO = "yolo"
 
+    # transform
     MODEL_STABLE_DIFFUSION = "stable_diffusion_transform"
     MODEL_SD_IMAGE_VARIATIONS = "sd_image_variations_transform"
 

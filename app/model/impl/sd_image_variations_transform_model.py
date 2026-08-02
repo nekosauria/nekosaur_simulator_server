@@ -7,7 +7,7 @@ from pathlib import Path
 
 from const.image_const import ImageConst
 from model.interface.base_transform_model import BaseTransformModel
-from util.image import resize_with_padding, save_image_with_timestamp
+from util.image import resize_with_padding
 
 
 class SDImageVariationsTransformModel(BaseTransformModel):
@@ -38,10 +38,18 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             requires_safety_checker=False
         ).to(self.device)
 
+        # 檢查所在的 device
+        for name, module in self.pipe.image_encoder.named_parameters():
+            print(f"MODEL_SD_IMAGE_VARIATIONS Image Encoder Device: {module.device}")
+            break
+
     @override
-    def generate(self, init_image_path: str, ref_image_path: str, output_dir: str) -> str:
-        ora_img = resize_with_padding(Image.open(init_image_path).convert("RGB"))
-        ref_img = resize_with_padding(Image.open(ref_image_path).convert("RGB"))
+    def generate(self, init_image_path: Path, ref_image_path: Path) -> Image.Image:
+        with Image.open(init_image_path) as img:
+            ora_img = resize_with_padding(img.convert("RGB"))
+
+        with Image.open(ref_image_path) as img:
+            ref_img = resize_with_padding(img.convert("RGB"))
 
         tform = transforms.Compose([
             transforms.ToTensor(),
@@ -54,4 +62,4 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         inp_fusion = (ora_img * self.ora_point) + (ref_img * self.ref_point)
         result = self.pipe(inp_fusion, guidance_scale=3)["images"][0]
 
-        return save_image_with_timestamp(image=result, output_dir=output_dir, prefix=ImageConst.MODEL_SD_IMAGE_VARIATIONS)
+        return result

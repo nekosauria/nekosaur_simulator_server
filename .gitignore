@@ -5,7 +5,8 @@ desktop.ini              # Windows
 .vscode/                 # Visual Studio Code 設定檔
 
 # ML Model File
-resources/model/
+resource/model/transform
+resource/model/detect/*.pt
 
 # 忽略真實的 config.ini
 config.ini

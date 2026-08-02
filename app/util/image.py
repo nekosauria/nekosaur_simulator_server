@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PIL import Image
 import torch
 import os
@@ -64,22 +66,17 @@ def get_ml_device():
 
 
 
-def save_image_with_timestamp(image, output_dir: str, prefix: str = "result") -> str:
+def save_image_with_timestamp(image, save_transform_dir: Path, file_name: str = "result") -> Path:
     """
     將 PIL 圖片物件儲存至指定目錄，並自動加上時間戳記。並回傳路徑。
     """
     # 自動建立不存在的資料夾，避免噴出 FileNotFoundError 錯誤
-    os.makedirs(output_dir, exist_ok=True)
-
-    # 產生時間戳記
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    os.makedirs(save_transform_dir, exist_ok=True)
 
     # 組合完整路徑：目錄 / 前綴_時間戳記.png
-    filename = f"{prefix}_{timestamp}.png"
-    transform_image_path = os.path.join(output_dir, filename)
+    transform_image_path = save_transform_dir / file_name
 
     # 儲存圖片
     image.save(transform_image_path)
-    print(f"saved transform_image_path => {transform_image_path}")
 
     return transform_image_path

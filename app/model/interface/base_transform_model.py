@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from PIL import Image
+
 class BaseTransformModel(ABC):
 
     @property
@@ -21,6 +23,6 @@ class BaseTransformModel(ABC):
         ...
 
     @abstractmethod
-    def generate(self, *args, **kwargs) -> str:
+    def generate(self, *args, **kwargs) -> Image.Image:
         """執行單次生成，回傳輸出圖片路徑"""
         ...

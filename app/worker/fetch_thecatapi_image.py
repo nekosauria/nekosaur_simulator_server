@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import requests
 import hashlib
 from util.common import common
@@ -6,7 +8,7 @@ from util.common import common
 # get conf
 config = common.config
 cat_key = config.get('api', "thecatapi_key")
-DOWNLOAD_DIR = config.get('api', "thecatapi_ora_img_path")
+DOWNLOAD_DIR = Path(f'{config.get('api', "thecatapi_ora_img_path")}')
 API_URL = config.get('api', "thecatapi_url") + cat_key
 
 
