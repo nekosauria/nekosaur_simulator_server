@@ -4,6 +4,26 @@ from PIL import Image
 import os
 
 from const.image_const import ImageConst
+from util.common import common
+
+logger = common.logger
+
+
+def collect_image_paths(folder, recursive: bool = True) -> list[str]:
+    # 取得資料夾內所有照片
+    folder = Path(folder)
+    pattern = "**/*" if recursive else "*"
+
+    logger.debug(f"collect_image_paths: folder={folder}, recursive={recursive}, exists={folder.exists()}")
+
+    paths = sorted(
+        str(p) for p in folder.glob(pattern)
+        if p.is_file() and p.suffix.lower().lstrip(".") in ImageConst.ALLOWED_EXTENSIONS
+    )
+
+    logger.debug(f"collect_image_paths: found {len(paths)} images in {folder}")
+
+    return paths
 
 
 def validate_image(request_files):

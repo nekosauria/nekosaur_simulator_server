@@ -47,11 +47,11 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             break
 
     @override
-    def generate(self, init_image_path: Path, ref_image_path: Path) -> Image.Image:
+    def generate(self, init_image_path: Path, style_ref_image: Path) -> Image.Image:
         with Image.open(init_image_path) as img:
             ora_img = resize_with_padding(img.convert("RGB"))
 
-        with Image.open(ref_image_path) as img:
+        with Image.open(style_ref_image) as img:
             ref_img = resize_with_padding(img.convert("RGB"))
 
         tform = transforms.Compose([

@@ -8,7 +8,7 @@ from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
 from service.sys_state import get_image_process_count
 
-from util.image import validate_image, save_image_with_timestamp
+from util.image import validate_image, save_image_with_timestamp, collect_image_paths
 from const.image_const import ImageConst
 from service.image_detection_service import ImageDetectionService
 from service.image_transform_service import ImageTransformService
@@ -25,7 +25,20 @@ image_bp = Blueprint("image", __name__)
 @image_bp.route('/count', methods=['GET'])
 def get_count():
     count = get_image_process_count("image_process")
-    return jsonify({"image_process_count": count})
+    style_ref_image_paths = Path(common.config.get('image', "style_ref_image_paths"))
+    style_ref_path = collect_image_paths(style_ref_image_paths)
+
+    response_data = {
+        "image_process_count": count,
+        "style_ref_image_paths": style_ref_path
+    }
+
+    # === 送出前 Print Log ===
+    logger.debug("=== [/count Response Data] ===")
+    # pretty print
+    logger.debug(json.dumps(response_data, indent=2, ensure_ascii=False))
+
+    return jsonify(response_data), 200
 
 
 @image_bp.route('/upload', methods=['POST'])
@@ -37,17 +50,17 @@ def get_count():
     max_concurrent=int(common.config.get('lock', "max_concurrent") )
 )
 def upload_image():
-
 ########################################################################################################################
+    ### 格式校驗 & 取參數
     api_start = time.perf_counter()
 
-    ### 格式校驗 & 取參數
     file, error, status = validate_image(request.files)
     if error:
         return jsonify({"success": False, "error": error}), status
 
     detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
     transform_model = request.form.get("transform_model", ImageConst.MODEL_SD_IMAGE_VARIATIONS)
+    style_ref_image = request.form.get("style_ref_image", common.config.get('image', "default_style_ref_img"))
     logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
 
 
@@ -123,10 +136,9 @@ def upload_image():
 
     # 風格轉換
     try:
-        # 取得 ref_image_path & transform_path
-        ref_image_path =  Path(f'{common.config.get("image", "style_ref_img")}')
+        # 取得 transform_path & 風格轉換參考圖
         transform_path = Path(f'{common.config.get("image", "transform_path")}')
-        logger.debug(f'ref_image_path: {ref_image_path}, transform_path: {transform_path}')
+        logger.debug(f'style_ref_image: {style_ref_image}, transform_path: {transform_path}')
 
         # === 直接從全域單例工廠取得常駐記憶體的模型 ===
         try:
@@ -140,7 +152,7 @@ def upload_image():
 
         ## 原圖 transform
         origin_image_transform_start = time.perf_counter()
-        origin_image_transform = svct.predict(ora_path, ref_image_path)
+        origin_image_transform = svct.generate(ora_path, Path(style_ref_image))
         origin_transform_path = save_image_with_timestamp( # save image
             image=origin_image_transform, save_transform_dir=transform_path / transform_model, file_name=ora_file_name
         )
@@ -184,7 +196,7 @@ def upload_image():
     }
 
     # === 送出前 Print Log ===
-    logger.debug("=== [Response Data] ===")
+    logger.debug("=== [/upload Response Data] ===")
     # pretty print
     logger.debug(json.dumps(response_data, indent=2, ensure_ascii=False))
 

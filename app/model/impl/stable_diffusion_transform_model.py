@@ -90,10 +90,10 @@ class StableDiffusionTransformModel(BaseTransformModel):
         logger.info("=== 核心模型與權重已成功載入 GPU，準備就緒！ ===")
 
     @override
-    def generate(self, init_image_path: Path, ref_image_path: Path) -> Image.Image:
+    def generate(self, init_image_path: Path, style_ref_image: Path) -> Image.Image:
         # load images
         init_image = load_image(str(init_image_path)).convert("RGB")
-        ref_image = load_image(str(ref_image_path)).convert("RGB")
+        ref_image = load_image(str(style_ref_image)).convert("RGB")
 
         # 對齊：強迫圖片調整為 512x512 (或 64 的倍數)，防止 VAE 卷積維度出錯產生網格亂碼
         init_image = init_image.resize((512, 512), Image.Resampling.LANCZOS)

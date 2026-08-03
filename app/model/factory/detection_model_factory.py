@@ -1,4 +1,5 @@
 from pathlib import Path
+from time import perf_counter
 from typing import Dict, override
 
 from const.image_const import ImageConst
@@ -28,6 +29,7 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
 
 ########################################################################################################################
         # 預先載入 Torch 模型
+        torch_start = perf_counter()
         torch_path = Path(f'{config.get('model', "maskrcnn_model")}')
         torch_model = TorchDetectionModel(
             model_path=torch_path,
@@ -36,11 +38,13 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
         )
         torch_model.load()
         cls._instances[ImageConst.MODEL_TORCH] = torch_model
-        logger.info("=== torch 模型載入完畢 ===")
+        torch_cost = round(perf_counter() - torch_start, 3)
+        logger.info(f"=== torch 模型載入完畢，耗時 {torch_cost}s ===")
 
 
 ########################################################################################################################
         # 預先載入 YOLO 模型
+        yolo_start = perf_counter()
         yolo_path = Path(f'{config.get('model', "yolo11n")}')
         yolo_model = YoloDetectionModel(
             model_path=yolo_path,
@@ -49,7 +53,8 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
         )
         yolo_model.load()
         cls._instances[ImageConst.MODEL_YOLO] = yolo_model
-        logger.info("=== yolo 模型載入完畢 ===")
+        yolo_cost = round(perf_counter() - yolo_start, 3)
+        logger.info(f"=== yolo 模型載入完畢，耗時 {yolo_cost}s ===")
 
 
         logger.info("=== 所有 Detection 模型載入完畢，準備就緒 ===")
