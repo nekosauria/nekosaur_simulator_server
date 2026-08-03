@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, List, override
+from typing import List, override
 
 from PIL.Image import Image
 from ultralytics import YOLO
@@ -7,7 +7,9 @@ from ultralytics import YOLO
 from const.image_const import ImageConst
 from dto.detection_result import DetectionResult
 from model.interface.base_detection_model import BaseDetectionModel
+from util.common import common
 
+logger = common.logger
 
 class YoloDetectionModel(BaseDetectionModel):
     """YOLO 系列模型（ultralytics）"""
@@ -36,7 +38,7 @@ class YoloDetectionModel(BaseDetectionModel):
 
     @override
     def load(self) -> None:
-        print(f"loading model from {self.model_path}, device: {self.device}")
+        logger.info(f"loading model from {self.model_path}, device: {self.device}")
         self._model = YOLO(str(self.model_path)).to(self.device)
 
     @override

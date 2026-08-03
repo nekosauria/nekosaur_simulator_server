@@ -5,6 +5,8 @@ import requests
 import hashlib
 from util.common import common
 
+logger = common.logger
+
 # get conf
 config = common.config
 cat_key = config.get('api', "thecatapi_key")
@@ -49,9 +51,9 @@ def download_image(url: str, save_dir=DOWNLOAD_DIR):
 
 if __name__ == "__main__":
     url = fetch_cat_image_url()
-    print("Image URL:", url)
+    logger.debug("Image URL:", url)
 
     path, md5 = download_image(url)
 
-    print("MD5:", md5)
-    print("Saved to:", path)
+    logger.debug("MD5:", md5)
+    logger.debug("Saved to:", path)

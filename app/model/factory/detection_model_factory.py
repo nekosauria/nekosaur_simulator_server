@@ -9,6 +9,9 @@ from model.interface.base_model_factory import BaseModelFactory
 from util.common import common
 from util.device import get_gpu_device
 
+logger = common.logger
+
+
 class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
     """全域模型工廠（單例模式），確保每種模型在記憶體中只會被加載一次"""
     _instances: Dict[str, BaseDetectionModel] = {}
@@ -17,7 +20,7 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
     @classmethod
     def init_models(cls, root_path: str):
         """在 Flask App 啟動時，由全域呼叫此函式進行『冷啟動』加載"""
-        print("=== 初始化全域 Detection 模型常駐記憶體 ===")
+        logger.info("=== 初始化全域 Detection 模型常駐記憶體 ===")
         config = common.config
         # 自動辨識最佳硬體
         gpu_device = get_gpu_device()
@@ -33,7 +36,7 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
         )
         torch_model.load()
         cls._instances[ImageConst.MODEL_TORCH] = torch_model
-        print("=== torch 模型載入完畢 ===")
+        logger.info("=== torch 模型載入完畢 ===")
 
 
 ########################################################################################################################
@@ -46,7 +49,7 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
         )
         yolo_model.load()
         cls._instances[ImageConst.MODEL_YOLO] = yolo_model
-        print("=== yolo 模型載入完畢 ===")
+        logger.info("=== yolo 模型載入完畢 ===")
 
 
-        print("=== 所有 Detection 模型載入完畢，準備就緒 ===")
+        logger.info("=== 所有 Detection 模型載入完畢，準備就緒 ===")

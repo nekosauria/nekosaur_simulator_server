@@ -9,6 +9,8 @@ from model.impl.sd_image_variations_transform_model import SDImageVariationsTran
 from util.common import common
 from util.device import get_gpu_device
 
+logger = common.logger
+
 class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
     """全域模型工廠（單例模式），確保每種 transform 模型在記憶體中只會被加載一次"""
     _instances: Dict[str, BaseTransformModel] = {}
@@ -16,7 +18,7 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
     @override
     @classmethod
     def init_models(cls, root_path: str):
-        print("=== 初始化全域 Transform 模型常駐記憶體 ===")
+        logger.info("=== 初始化全域 Transform 模型常駐記憶體 ===")
         config = common.config
         gpu_device = get_gpu_device()
 
@@ -30,7 +32,7 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
         )
         sd_model.load()
         cls._instances[ImageConst.MODEL_STABLE_DIFFUSION] = sd_model
-        print("=== stable_diffusion_transform 模型載入完畢 ===")
+        logger.info("=== stable_diffusion_transform 模型載入完畢 ===")
 
 
 ########################################################################################################################
@@ -41,8 +43,8 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
         )
         sdv_model.load()
         cls._instances[ImageConst.MODEL_SD_IMAGE_VARIATIONS] = sdv_model
-        print("=== sd_image_variations_transform 模型載入完畢 ===")
+        logger.info("=== sd_image_variations_transform 模型載入完畢 ===")
 
 
-        print("=== 所有 Transform 模型載入完畢，準備就緒 ===")
+        logger.info("=== 所有 Transform 模型載入完畢，準備就緒 ===")
 

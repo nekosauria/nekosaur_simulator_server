@@ -1,9 +1,7 @@
 from pathlib import Path
 
 from PIL import Image
-import torch
 import os
-from datetime import datetime
 
 from const.image_const import ImageConst
 
@@ -45,26 +43,6 @@ def resize_with_padding(image, target_size=(512, 512)):
     new_image.paste(image, ((target_size[0] - image.size[0]) // 2,
                             (target_size[1] - image.size[1]) // 2))
     return new_image
-
-def get_ml_device():
-    if torch.cuda.is_available():
-        device = "cuda"
-        dtype = torch.float16
-
-    elif torch.backends.mps.is_available():
-        device = "mps"
-        dtype = torch.float32
-
-    else:
-        device = "cpu"
-        dtype = torch.float32
-
-    print(f"device={device}")
-    print(f"dtype={dtype}")
-
-    return device, dtype
-
-
 
 def save_image_with_timestamp(image, save_transform_dir: Path, file_name: str = "result") -> Path:
     """

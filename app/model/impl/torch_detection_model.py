@@ -8,6 +8,9 @@ from PIL.Image import Image
 from const.image_const import ImageConst
 from dto.detection_result import DetectionResult
 from model.interface.base_detection_model import BaseDetectionModel
+from util.common import common
+
+logger = common.logger
 
 
 class TorchDetectionModel(BaseDetectionModel):
@@ -35,9 +38,9 @@ class TorchDetectionModel(BaseDetectionModel):
 
     @override
     def load(self) -> None:
-        print(f"loading model from {self.model_path}, device: {self.device}")
+        logger.info(f"loading model from {self.model_path}, device: {self.device}")
         raw = torch.load(self.model_path, weights_only=False)
-        print(type(raw))  # 看這裡
+        logger.info(type(raw))  # 看這裡
         self._model = raw.to(self.device)
         self._model.eval()
 

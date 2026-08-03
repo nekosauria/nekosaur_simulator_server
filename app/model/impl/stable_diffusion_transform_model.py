@@ -8,6 +8,10 @@ from const.image_const import ImageConst
 from model.interface.base_transform_model import BaseTransformModel
 from pathlib import Path
 
+from util.common import common
+
+logger = common.logger
+
 
 class StableDiffusionTransformModel(BaseTransformModel):
     def __init__(self, model_path: Path, ip_adapter_model_path, device: str = "cpu", ip_adapter_scale: float = 0.3):
@@ -80,10 +84,10 @@ class StableDiffusionTransformModel(BaseTransformModel):
 
         # 檢查所在的 device
         for name, module in self.pipe.image_encoder.named_parameters():
-            print(f"MODEL_STABLE_DIFFUSION Image Encoder Device: {module.device}")
+            logger.info(f"MODEL_STABLE_DIFFUSION Image Encoder Device: {module.device}")
             break
 
-        print("=== 核心模型與權重已成功載入 GPU，準備就緒！ ===")
+        logger.info("=== 核心模型與權重已成功載入 GPU，準備就緒！ ===")
 
     @override
     def generate(self, init_image_path: Path, ref_image_path: Path) -> Image.Image:

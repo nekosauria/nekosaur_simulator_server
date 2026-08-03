@@ -3,6 +3,9 @@ import random
 import cv2
 import numpy as np
 
+from util.common import common
+
+logger = common.logger
 
 
 # 💡 優化一：顏色生成改為「靜態映射字典」或「基於類別 ID 決定固定顏色」
@@ -128,7 +131,7 @@ def draw_detections(
 
         # 【條件】信心分數需超過預測值就標記，且同一標籤不重複標記
         if score > score_threshold and labels[label_idx] not in tags:
-            print(f"score: {score:.4f}, label: {labels[label_idx]}")
+            logger.debug(f"score: {score:.4f}, label: {labels[label_idx]}")
 
             # 產生框線顏色（BGR or RGB tuple）
             color = get_color_by_label(label_idx)

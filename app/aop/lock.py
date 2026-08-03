@@ -3,8 +3,10 @@ import sqlite3
 import time
 import traceback
 
+from util.common import common
 from util.sqlite import get_db
 
+logger = common.logger
 
 def sqlite_table_lock(lock_class, ttl_seconds=60, retry_interval=1.0, timeout=10, max_concurrent=1):
     """
@@ -35,7 +37,7 @@ def _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurre
     回傳：成功 insert 的 row id，釋放鎖時用
     """
     start_time = time.time()
-    print(f"[⏳ LOCK TRY] 嘗試獲取 [{lock_class}] 資料庫鎖 ...")
+    logger.debug(f"[⏳ LOCK TRY] 嘗試獲取 [{lock_class}] 資料庫鎖 ...")
 
     while time.time() - start_time < timeout:
         current_now = int(time.time())
@@ -62,13 +64,12 @@ def _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurre
                         VALUES (?, ?, 1, datetime('now'))
                     """, (lock_class, expire_time))
                     row_id = cursor.lastrowid # 取得新新增的主鍵 ID (用作 Lock ID)
-                    print(
+                    logger.debug(
                         f"[🔑 LOCK ACQUIRED] 成功取得鎖 [{lock_class}]，id={row_id}，active={active_count + 1}/{max_concurrent}")
                     return row_id
 
         except sqlite3.Error as e:
-            traceback.print_exc()
-            print(f"[❌ DB Error] {e}")
+            logger.error(f"[❌ DB Error] {e}")
         finally:
             db.close()
 
@@ -88,9 +89,8 @@ def _release_lock(row_id):
                     finished_at = datetime('now')
                 WHERE id = ?
             """, (row_id,))
-        print(f"[🔓 LOCK RELEASED] 已釋放鎖 id={row_id}\n")
+        logger.debug(f"[🔓 LOCK RELEASED] 已釋放鎖 id={row_id}\n")
     except sqlite3.Error as e:
-        traceback.print_exc()
-        print(f"[❌ RELEASE Error] {e}")
+        logger.error(f"[❌ RELEASE Error] {e}")
     finally:
         db.close()

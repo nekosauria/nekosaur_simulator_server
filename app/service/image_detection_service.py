@@ -3,7 +3,10 @@ from PIL import Image
 
 from const.image_const import ImageConst
 from model.interface.base_detection_model import BaseDetectionModel
+from util.common import common
 from util.image_draw import draw_detections
+
+logger = common.logger
 
 
 class ImageDetectionService:
@@ -27,7 +30,7 @@ class ImageDetectionService:
 
         # init var
         labels = self._model.labels
-        print(f"labels: {labels}")
+        logger.debug(f"labels: {labels}")
 
         ora_image = Image.open(file)
         ora_np = np.array(ora_image.copy())  # 複製原圖作為繪圖畫布（RGB numpy array）

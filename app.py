@@ -14,7 +14,7 @@ CORS(app)
 
 # 註冊 blueprint (routes)
 app.register_blueprint(image_bp)
-
+logger = common.logger
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -42,15 +42,14 @@ def init_stage():
 
     for folder_path in dirs_to_create:
         os.makedirs(folder_path, exist_ok=True)
-        print(f"Directory checked/created: {folder_path}")
+        logger.info(f"Directory checked/created: {folder_path}")
 
     #在 App 啟動時就把模型餵進記憶體
-    print(f"app.root_path: {app.root_path}")
+    logger.info(f"app.root_path: {app.root_path}")
     DetectionModelFactory.init_models(app.root_path)
     TransformModelFactory.init_models(app.root_path)
 
 
 if __name__ == '__main__':
-
     init_stage()
     app.run(debug=False, host=common.config.get('server', 'web_base_host'), port=common.config.get('server', 'web_base_port'))

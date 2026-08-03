@@ -7,7 +7,10 @@ from pathlib import Path
 
 from const.image_const import ImageConst
 from model.interface.base_transform_model import BaseTransformModel
+from util.common import common
 from util.image import resize_with_padding
+
+logger = common.logger
 
 
 class SDImageVariationsTransformModel(BaseTransformModel):
@@ -40,7 +43,7 @@ class SDImageVariationsTransformModel(BaseTransformModel):
 
         # 檢查所在的 device
         for name, module in self.pipe.image_encoder.named_parameters():
-            print(f"MODEL_SD_IMAGE_VARIATIONS Image Encoder Device: {module.device}")
+            logger.info(f"MODEL_SD_IMAGE_VARIATIONS Image Encoder Device: {module.device}")
             break
 
     @override
