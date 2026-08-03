@@ -35,7 +35,7 @@ def _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurre
     回傳：成功 insert 的 row id，釋放鎖時用
     """
     start_time = time.time()
-    print(f"[⏳ LOCK TRY] 嘗試獲取資料庫鎖 [{lock_class}]...")
+    print(f"[⏳ LOCK TRY] 嘗試獲取 [{lock_class}] 資料庫鎖 ...")
 
     while time.time() - start_time < timeout:
         current_now = int(time.time())
@@ -44,22 +44,24 @@ def _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurre
         db = get_db()
         try:
             with db:
-                # 查目前 active session 數（未完成且未過期）
+                # 查詢當前有效 (Active) 的鎖數量
+                # 判定條件：同一 lock_class、處於鎖定狀態 (is_locked=1)，且過期時間大於當前時間 (未過期)
                 row = db.execute("""
                     SELECT COUNT(*) FROM sys_state
                     WHERE lock_class = ?
                       AND is_locked = 1
-                      AND timestamp > ?
+                      AND expire_at > ?
                 """, (lock_class, current_now)).fetchone()
 
                 active_count = row[0]
 
+                # 檢查併發量是否尚未額滿
                 if active_count < max_concurrent:
                     cursor = db.execute("""
-                        INSERT INTO sys_state (lock_class, timestamp, is_locked, created_at)
+                        INSERT INTO sys_state (lock_class, expire_at, is_locked, created_at)
                         VALUES (?, ?, 1, datetime('now'))
                     """, (lock_class, expire_time))
-                    row_id = cursor.lastrowid
+                    row_id = cursor.lastrowid # 取得新新增的主鍵 ID (用作 Lock ID)
                     print(
                         f"[🔑 LOCK ACQUIRED] 成功取得鎖 [{lock_class}]，id={row_id}，active={active_count + 1}/{max_concurrent}")
                     return row_id

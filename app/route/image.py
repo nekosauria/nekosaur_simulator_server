@@ -27,7 +27,13 @@ def get_count():
 
 
 @image_bp.route('/upload', methods=['POST'])
-@sqlite_table_lock(lock_class="image_process", ttl_seconds=300, retry_interval=3.0, timeout=30, max_concurrent=2)
+@sqlite_table_lock(
+    lock_class="image_process",
+    ttl_seconds=int(common.config.get('lock', "ttl_seconds") ),
+    retry_interval=float(common.config.get('lock', "retry_interval") ),
+    timeout=int(common.config.get('lock', "timeout") ),
+    max_concurrent=int(common.config.get('lock', "max_concurrent") )
+)
 def upload_image():
 
 ########################################################################################################################

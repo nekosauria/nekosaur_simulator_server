@@ -7,7 +7,7 @@ from const.image_const import ImageConst
 from route.image import image_bp
 from model.factory.detection_model_factory import DetectionModelFactory
 from model.factory.transform_model_factory import TransformModelFactory
-from util.common import Common, common
+from util.common import common
 
 app = Flask(__name__)
 CORS(app)
