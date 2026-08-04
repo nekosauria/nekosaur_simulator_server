@@ -59,7 +59,7 @@ def upload_image():
         return jsonify({"success": False, "error": error}), status
 
     detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
-    transform_model = request.form.get("transform_model", ImageConst.MODEL_SD_IMAGE_VARIATIONS)
+    transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
     style_ref_image = request.form.get("style_ref_image", common.config.get('image', "default_style_ref_img"))
     logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
 

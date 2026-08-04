@@ -8,7 +8,7 @@ from model.interface.base_transform_model import BaseTransformModel
 from model.impl.stable_diffusion_transform_model import StableDiffusionTransformModel
 from model.impl.sd_image_variations_transform_model import SDImageVariationsTransformModel
 from util.common import common
-from util.device import get_gpu_device
+from util.device import get_gpu_device, get_gpu_dtype
 
 logger = common.logger
 
@@ -22,6 +22,7 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
         logger.info("=== 初始化全域 Transform 模型常駐記憶體 ===")
         config = common.config
         gpu_device = get_gpu_device()
+        gpu_dtype = get_gpu_dtype()
 
 
 ########################################################################################################################
@@ -30,7 +31,9 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
         sd_model = StableDiffusionTransformModel(
             model_path=Path(config.get('model', "stable_diffusion_model_path")),
             ip_adapter_model_path=Path(f'{config.get('model', "ip_adapter_model_path")}'),
-            device=gpu_device
+            device=gpu_device,
+            dtype=gpu_dtype,
+            ip_adapter_scale=0.4
         )
         sd_model.load()
         cls._instances[ImageConst.MODEL_STABLE_DIFFUSION] = sd_model
@@ -43,7 +46,10 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
         sd_image_variations_transform_start = perf_counter()
         sdv_model = SDImageVariationsTransformModel(
             model_path=Path(f'{config.get('model', "sd_image_variations_model_path")}'),
-            device=gpu_device
+            device=gpu_device,
+            dtype=gpu_dtype,
+            ora_point=0.7,
+            ref_point=0.3
         )
         sdv_model.load()
         cls._instances[ImageConst.MODEL_SD_IMAGE_VARIATIONS] = sdv_model

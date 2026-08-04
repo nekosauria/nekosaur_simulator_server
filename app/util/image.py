@@ -47,6 +47,9 @@ def validate_image(request_files):
     return file, None, None
 
 def resize_with_padding(image, target_size=(512, 512)):
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+
     # 方案 1: 嘗試新版 Pillow (10.0+) 的 Resampling 屬性
     resample_filter = getattr(Image, 'Resampling', Image)
 
