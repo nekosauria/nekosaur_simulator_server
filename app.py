@@ -14,6 +14,8 @@ CORS(app)
 
 # 註冊 blueprint (routes)
 app.register_blueprint(image_bp)
+
+config = common.config
 logger = common.logger
 
 @app.route("/", methods=["GET", "POST"])
@@ -25,26 +27,30 @@ def init_stage():
     # 資料夾檢查並建立所需資料夾
     dirs_to_create = [
         # api (thecatapi) path
-        os.path.join(app.root_path, common.config.get('api', 'thecatapi_ora_img_path')),
-        os.path.join(app.root_path, common.config.get('api', 'thecatapi_transform_img_path'), ImageConst.MODEL_STABLE_DIFFUSION),
-        os.path.join(app.root_path, common.config.get('api', 'thecatapi_transform_img_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
+        os.path.join(app.root_path, config.get('api', 'thecatapi_ora_img_path')),
+        os.path.join(app.root_path, config.get('api', 'thecatapi_detect_path'), ImageConst.MODEL_TORCH),
+        os.path.join(app.root_path, config.get('api', 'thecatapi_detect_path'), ImageConst.MODEL_YOLO),
+        os.path.join(app.root_path, config.get('api', 'thecatapi_transform_img_path'), ImageConst.MODEL_STABLE_DIFFUSION),
+        os.path.join(app.root_path, config.get('api', 'thecatapi_transform_img_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
 
         # user_input path
-        os.path.join(app.root_path, common.config.get('image', 'user_input_ora_path')),
-        os.path.join(app.root_path, common.config.get('image', 'user_input_detect_path'), ImageConst.MODEL_TORCH),
-        os.path.join(app.root_path, common.config.get('image', 'user_input_detect_path'), ImageConst.MODEL_YOLO),
-        os.path.join(app.root_path, common.config.get('image', 'user_input_transform_path'), ImageConst.MODEL_STABLE_DIFFUSION),
-        os.path.join(app.root_path, common.config.get('image', 'user_input_transform_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
+        os.path.join(app.root_path, config.get('image', 'user_input_ora_path')),
+        os.path.join(app.root_path, config.get('image', 'user_input_detect_path'), ImageConst.MODEL_TORCH),
+        os.path.join(app.root_path, config.get('image', 'user_input_detect_path'), ImageConst.MODEL_YOLO),
+        os.path.join(app.root_path, config.get('image', 'user_input_transform_path'), ImageConst.MODEL_STABLE_DIFFUSION),
+        os.path.join(app.root_path, config.get('image', 'user_input_transform_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
 
         # log path
-        os.path.join(app.root_path, common.config.get('global', 'log_path'))
+        os.path.join(app.root_path, config.get('global', 'log_path'))
     ]
 
     for folder_path in dirs_to_create:
         os.makedirs(folder_path, exist_ok=True)
         logger.info(f"Directory checked/created: {folder_path}")
 
-    #在 App 啟動時就把模型餵進記憶體
+
+def model_stage():
+    # 在 App 啟動時就把模型餵進記憶體
     logger.info(f"app.root_path: {app.root_path}")
     DetectionModelFactory.init_models(app.root_path)
     TransformModelFactory.init_models(app.root_path)
@@ -52,4 +58,6 @@ def init_stage():
 
 if __name__ == '__main__':
     init_stage()
-    app.run(debug=False, host=common.config.get('server', 'web_base_host'), port=common.config.get('server', 'web_base_port'))
+    model_stage()
+
+    app.run(debug=False, host=config.get('server', 'web_base_host'), port=config.get('server', 'web_base_port'))

@@ -9,7 +9,7 @@ from util.image_draw import draw_detections
 logger = common.logger
 
 
-class ImageDetectionService:
+class ImageDetection:
 
     def __init__(self, model: BaseDetectionModel):
         self._model = model

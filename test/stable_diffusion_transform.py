@@ -10,9 +10,9 @@ from datetime import datetime
 # =========================
 
 # get setting
-ora_img = '/Users/teddylai/Downloads/tmp/picture/brown_dog.jpeg'
-ref_img = '/Users/teddylai/Downloads/tmp/picture/cartoon_dog.jpeg'
-out_img = '/Users/teddylai/Downloads/result'
+ora_img = '/Users/teddylai/Downloads/tmp/test_picture/brown_dog.jpeg'
+ref_img = '/Users/teddylai/Downloads/tmp/test_picture/cartoon_dog.jpeg'
+out_img = '/Users/teddylai/Downloads/tmp/download/'
 DIFFUSION_MODEL_PATH = '/Users/teddylai/teddy_fetch/nas_workplace/side_project/nekosaur_simulator_server/resource/model/transform/stable-diffusion-v1-5'
 IP_ADAPTER_PATH ='/Users/teddylai/teddy_fetch/nas_workplace/side_project/nekosaur_simulator_server/resource/model/transform/IP-Adapter'
 

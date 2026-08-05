@@ -13,6 +13,8 @@ from util.common import common
 from util.device import empty_device_cache
 from util.image import resize_with_padding
 
+
+config = common.config
 logger = common.logger
 
 
@@ -39,8 +41,8 @@ class StableDiffusionTransformModel(BaseTransformModel):
         self.ip_adapter_scale = ip_adapter_scale
 
         # 固定生成參數，不對外開放調整
-        self.prompt = "a hybrid creature combining cat and dinosaur, masterpiece, high quality, highly detailed"
-        self.negative_prompt = "blurry, low quality, distorted, deformed, noise, artifacts, bad anatomy, text, watermark"
+        self.prompt = config.get("model","stable_diffusion_prompt")
+        self.negative_prompt = config.get("model","stable_diffusion_negative_prompt")
 
         # model parameter weight
         # --- 控制模型「創意思維」的核心參數 ---

@@ -1,7 +1,8 @@
+import hashlib
+import io
 from pathlib import Path
 
 from PIL import Image
-import os
 
 from const.image_const import ImageConst
 from util.common import common
@@ -67,17 +68,62 @@ def resize_with_padding(image, target_size=(512, 512)):
                             (target_size[1] - image.size[1]) // 2))
     return new_image
 
-def save_image_with_timestamp(image, save_transform_dir: Path, file_name: str = "result") -> Path:
+
+def save_image_with_md5(
+    image: Image.Image,
+    save_transform_dir: Path,
+    file_name: str = "result",
+    convert_jpg: bool = True,
+    quality: int = 90,
+) -> tuple[Path, str]:
+    """將 PIL 圖片物件儲存至指定目錄，自動加上 md5 並回傳 (路徑, md5_hash)。
+
+        :param image: PIL Image 物件
+        :param save_transform_dir: 儲存目錄
+        :param file_name: 檔名 (可帶原副檔名)
+        :param convert_jpg: 是否強制轉換為 .jpg 格式 (預設為 True)
+        :param quality: 若為 JPEG 格式時的壓縮品質 (1-100)
+        :return: (最終檔案路徑, md5_hash)
     """
-    將 PIL 圖片物件儲存至指定目錄，並自動加上時間戳記。並回傳路徑。
-    """
-    # 自動建立不存在的資料夾，避免噴出 FileNotFoundError 錯誤
-    os.makedirs(save_transform_dir, exist_ok=True)
+    # 1. 判斷圖片格式與副檔名
+    ext = Path(file_name).suffix.lower()
+    save_kwargs = {}
 
-    # 組合完整路徑：目錄 / 前綴_時間戳記.png
-    transform_image_path = save_transform_dir / file_name
+    if convert_jpg:
+        fmt = "JPEG"
+        ext = ".jpg"
+        save_kwargs["quality"] = quality
+        if image.mode in ("RGBA", "P", "LA"):
+            image = image.convert("RGB")
+    else:
+        fmt = image.format
+        if not fmt:
+            if ext in (".jpg", ".jpeg"):
+                fmt = "JPEG"
+            else:
+                fmt = "PNG"
 
-    # 儲存圖片
-    image.save(transform_image_path)
+        if fmt == "JPEG":
+            save_kwargs["quality"] = quality
 
-    return transform_image_path
+        if not ext:
+            ext = f".{fmt.lower()}"
+
+    # 2. 寫入記憶體緩衝區並計算 MD5
+    buffer = io.BytesIO()
+    image.save(buffer, format=fmt, **save_kwargs)
+    image_bytes = buffer.getvalue()
+    md5_hash = hashlib.md5(image_bytes).hexdigest()
+
+    # 3. 組合檔名並寫入實體檔案
+    stem = Path(file_name).stem
+    out_path = save_transform_dir / f"{md5_hash}_{stem}{ext}"
+    out_path.write_bytes(image_bytes)
+
+    return out_path, md5_hash
+
+
+def get_md5(content: bytes) -> str:
+    """計算 MD5"""
+    return hashlib.md5(content).hexdigest()
+

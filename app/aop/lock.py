@@ -1,49 +1,47 @@
 import functools
 import sqlite3
 import time
-import traceback
 
+from dto.lock_config import LockConfig
+from entity.sys_state import SysState
 from util.common import common
-from util.sqlite import get_db
+from util.sqlite import get_sqlite_connection
 
 logger = common.logger
 
-def sqlite_table_lock(lock_class, ttl_seconds=60, retry_interval=1.0, timeout=10, max_concurrent=1):
+
+def sqlite_table_lock(config: LockConfig):
     """
     基於 SQLite 資料表的分散式鎖裝飾器
-    :param lock_class:     鎖的類別名稱 (字串)
-    :param ttl_seconds:    鎖的存活時間 (TTL)，防止當機死鎖
-    :param retry_interval: 沒搶到鎖時，隔多少秒重試一次
-    :param timeout:        最大排隊等待時間，超過則拋出逾時異常
-    :param max_concurrent: 允許同時處理的最大 session 數
+    :param config: 鎖的設定（lock_class、ttl_seconds、retry_interval、timeout、max_concurrent）
     """
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            row_id = _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurrent)
+            lock_state = _acquire_lock(config)
             try:
                 return func(*args, **kwargs)
             finally:
-                _release_lock(row_id)
+                _release_lock(lock_state)
 
         return wrapper
     return decorator
 
 
-def _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurrent):
+def _acquire_lock(config: LockConfig) -> SysState:
     """
     搶鎖邏輯：在 timeout 內不斷重試
     成功條件：active session 數 < max_concurrent
-    回傳：成功 insert 的 row id，釋放鎖時用
+    回傳：成功寫入的 SysState（含 db 產生的 id），釋放鎖時用
     """
     start_time = time.time()
-    logger.debug(f"[⏳ LOCK TRY] 嘗試獲取 [{lock_class}] 資料庫鎖 ...")
+    logger.debug(f"[⏳ LOCK TRY] 嘗試獲取 [{config.lock_class}] 資料庫鎖 ...")
 
-    while time.time() - start_time < timeout:
+    while time.time() - start_time < config.timeout:
         current_now = int(time.time())
-        expire_time = current_now + ttl_seconds
+        expire_time = current_now + config.ttl_seconds
 
-        db = get_db()
+        db = get_sqlite_connection()
         try:
             with db:
                 # 查詢當前有效 (Active) 的鎖數量
@@ -53,34 +51,42 @@ def _acquire_lock(lock_class, ttl_seconds, retry_interval, timeout, max_concurre
                     WHERE lock_class = ?
                       AND is_locked = 1
                       AND expire_at > ?
-                """, (lock_class, current_now)).fetchone()
+                """, (config.lock_class, current_now)).fetchone()
 
                 active_count = row[0]
 
                 # 檢查併發量是否尚未額滿
-                if active_count < max_concurrent:
+                if active_count < config.max_concurrent:
+                    lock_state = SysState(
+                        lock_class=config.lock_class,
+                        expire_at=expire_time,
+                        is_locked=1,
+                    )
+
                     cursor = db.execute("""
                         INSERT INTO sys_state (lock_class, expire_at, is_locked, created_at)
-                        VALUES (?, ?, 1, datetime('now'))
-                    """, (lock_class, expire_time))
-                    row_id = cursor.lastrowid # 取得新新增的主鍵 ID (用作 Lock ID)
+                        VALUES (?, ?, ?, datetime('now'))
+                    """, (lock_state.lock_class, lock_state.expire_at, lock_state.is_locked))
+
+                    lock_state.id = cursor.lastrowid
+
                     logger.debug(
-                        f"[🔑 LOCK ACQUIRED] 成功取得鎖 [{lock_class}]，id={row_id}，active={active_count + 1}/{max_concurrent}")
-                    return row_id
+                        f"[🔑 LOCK ACQUIRED] 成功取得鎖 [{config.lock_class}]，id={lock_state.id}，active={active_count + 1}/{config.max_concurrent}")
+                    return lock_state
 
         except sqlite3.Error as e:
             logger.error(f"[❌ DB Error] {e}")
         finally:
             db.close()
 
-        time.sleep(retry_interval)  # 沒搶到，等一下再重試
+        time.sleep(config.retry_interval)  # 沒搶到，等一下再重試
 
-    raise TimeoutError(f"搶鎖逾時！無法取得 [{lock_class}] 的控制權。")
+    raise TimeoutError(f"搶鎖逾時！無法取得 [{config.lock_class}] 的控制權。")
 
 
-def _release_lock(row_id):
+def _release_lock(lock_state: SysState):
     """ 釋放鎖：更新指定 id 那筆，標記完成時間 """
-    db = get_db()
+    db = get_sqlite_connection()
     try:
         with db:
             db.execute("""
@@ -88,8 +94,8 @@ def _release_lock(row_id):
                 SET is_locked = 0,
                     finished_at = datetime('now')
                 WHERE id = ?
-            """, (row_id,))
-        logger.debug(f"[🔓 LOCK RELEASED] 已釋放鎖 id={row_id}\n")
+            """, (lock_state.id,))
+        logger.debug(f"[🔓 LOCK RELEASED] 已釋放鎖 id={lock_state.id}\n")
     except sqlite3.Error as e:
         logger.error(f"[❌ RELEASE Error] {e}")
     finally:

@@ -1,73 +1,88 @@
 import json
 import time
-from datetime import datetime
-import hashlib
 from pathlib import Path
 
 from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
-from service.sys_state import get_image_process_count
 
-from util.image import validate_image, save_image_with_timestamp, collect_image_paths
+from dto.lock_config import LockConfig
+from entity.sys_state import SysState
+from service.sys_state import get_image_process_count
+import PIL.Image
+
+from util.image import validate_image, save_image_with_md5, collect_image_paths
 from const.image_const import ImageConst
-from service.image_detection_service import ImageDetectionService
-from service.image_transform_service import ImageTransformService
+from service.image_detection import ImageDetection
+from service.image_transform import ImageTransform
 from model.factory.detection_model_factory import DetectionModelFactory
 from model.factory.transform_model_factory import TransformModelFactory
 from util.common import common
 import numpy as np
-import cv2
 
+
+config = common.config
 logger = common.logger
+
 image_bp = Blueprint("image", __name__)
+
+lock_config = LockConfig(
+    lock_class=ImageConst.IMAGE_PROCESS,
+    ttl_seconds=int(config.get('lock', 'ttl_seconds')),
+    retry_interval=float(config.get('lock', 'retry_interval')),
+    timeout=int(config.get('lock', 'timeout')),
+    max_concurrent=int(config.get('lock', 'max_concurrent')),
+)
 
 
 @image_bp.route('/count', methods=['GET'])
 def get_count():
-    count = get_image_process_count("image_process")
-    style_ref_image_paths = Path(common.config.get('image', "style_ref_image_paths"))
+    # === 取得 api 使用次數 (sqlite) ===
+    count = get_image_process_count(SysState(lock_class="image_process"))
+    style_ref_image_paths = Path(config.get('image', "style_ref_image_paths"))
     style_ref_path = collect_image_paths(style_ref_image_paths)
 
+
+    # === return data ===
     response_data = {
         "image_process_count": count,
         "style_ref_image_paths": style_ref_path
     }
 
-    # === 送出前 Print Log ===
+    # pretty print data
     logger.debug("=== [/count Response Data] ===")
-    # pretty print
     logger.debug(json.dumps(response_data, indent=2, ensure_ascii=False))
 
     return jsonify(response_data), 200
 
 
 @image_bp.route('/upload', methods=['POST'])
-@sqlite_table_lock(
-    lock_class="image_process",
-    ttl_seconds=int(common.config.get('lock', "ttl_seconds") ),
-    retry_interval=float(common.config.get('lock', "retry_interval") ),
-    timeout=int(common.config.get('lock', "timeout") ),
-    max_concurrent=int(common.config.get('lock', "max_concurrent") )
-)
+@sqlite_table_lock(lock_config)
 def upload_image():
 ########################################################################################################################
-    ### 格式校驗 & 取參數
+    #  ===  格式校驗 & 取參數  ===
     api_start = time.perf_counter()
 
-    file, error, status = validate_image(request.files)
+    ora_file, error, status = validate_image(request.files)
     if error:
         return jsonify({"success": False, "error": error}), status
 
+    ora_filename = ora_file.filename
+
     detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
     transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
-    style_ref_image = request.form.get("style_ref_image", common.config.get('image', "default_style_ref_img"))
+    style_ref_image = request.form.get("style_ref_image", config.get('image', "default_style_ref_img"))
+
+    web_base_url = config.get('server', 'web_base_url')
+
     logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
 
 
 ########################################################################################################################
-    ### 檢查上傳圖是否有貓
+    #  ===  檢查上傳圖是否有貓  ===
     # 預設使用 yolo 需求較低
     detector_image_start = time.perf_counter()
+
+
     try:
         # === 直接從全域單例工廠取得常駐記憶體的模型 ===
         try:
@@ -76,40 +91,46 @@ def upload_image():
             logger.error(f"ValueError: {ve}", exc_info=True)
             return jsonify({"error": str(ve)}), 400
 
+
         # === 開始跑預測 ===
-        svcd = ImageDetectionService(model=d_model)
-        tag_results, predict_list, result_np = svcd.make_detect_image(file)
+        svcd = ImageDetection(model=d_model)
+        tag_results, predict_list, result_np = svcd.make_detect_image(ora_file)
 
-        ### save user images with jpg
-        # add md5 key
-        file.seek(0) # reset image index
-        data = file.read()
-        md5 = hashlib.md5(data).hexdigest()
 
-        # 產生時間戳記
-        timestamp = datetime.now().strftime("%Y%m%d")
+        # === 儲存原圖 (使用 save_image_with_md5) ===
+        ora_file.seek(0)  # reset image index
 
-        # image 檔名
-        ora_file_name = f"{timestamp}_{md5}_{file.filename}"
+        ora_image = PIL.Image.open(ora_file)  # 載入為 PIL Image 物件
+        ora_dir = Path(config.get("image", "user_input_ora_path"))
 
-        ## 寫入原圖
-        ora_dir = Path(common.config.get('image', "user_input_ora_path"))
-        ora_path = ora_dir / ora_file_name
-        ora_path.write_bytes(data)
-        logger.debug(f'ora_path: {ora_path}')
+        # 使用 save_image_with_md5 儲存並取得自動生成的檔名路徑與 md5
+        ora_path, ora_md5 = save_image_with_md5(
+            image=ora_image, save_transform_dir=ora_dir, file_name=ora_filename, convert_jpg=False
+        )
+        logger.debug(f"ora_path: {ora_path}, md5: {ora_md5}")
 
-        ## 寫入 detect image
+        ora_file.seek(0)  # 讀取完畢後再次重置指標
+
+
+        # === 寫入 detect image ===
         # ✅ imwrite 前確認 result_image 是合法的 numpy array
         if result_np is None or not isinstance(result_np, np.ndarray) or result_np.size == 0:
             raise ValueError("result_np 不合法，無法寫入檔案")
 
-        # 直接對 result_image 原地修改，最後用 cv2 模組存檔
-        # 將 RGB 轉回 BGR（OpenCV 預設色彩空間），再寫入輸出路徑
-        detect_dir = Path(common.config.get('image', "user_input_detect_path"))
-        detect_path = detect_dir / detect_model / ora_file_name
-        cv2.imwrite(str(detect_path), cv2.cvtColor(result_np, cv2.COLOR_RGB2BGR))
+        # 1. 將 NumPy Array (RGB) 轉換為 PIL Image 物件
+        detect_image = PIL.Image.fromarray(result_np)
 
-        logger.debug(f'tag_results: {tag_results}, predict_list: {predict_list}, detect_path: {detect_path}')
+        # 2. 設定 detect 圖片儲存目錄
+        detect_dir = Path(config.get('image', "user_input_detect_path")) / detect_model
+
+        # 3. 使用 save_image_with_md5 儲存
+        detect_path, detect_md5 = save_image_with_md5(
+            image=detect_image,
+            save_transform_dir=detect_dir,
+            file_name=ora_filename
+        )
+        logger.debug(
+            f'tag_results: {tag_results}, predict_list: {predict_list}, detect_path: {detect_path}, detect_md5: {detect_md5}')
         detector_image_cost = round(time.perf_counter() - detector_image_start, 3)
 
     except Exception as e:
@@ -119,7 +140,7 @@ def upload_image():
 
 
 ########################################################################################################################
-    # vector search similar image
+    #  === vector search similar image  ===
     similar_image_start = time.perf_counter()
 
     similar_path = ora_path
@@ -130,15 +151,17 @@ def upload_image():
 
 
 ########################################################################################################################
-    # style transform two images
-    # 目前提供 1.sd_image_variations_transform, 2.stable_diffusion_transform
-    # 預設使用 sd_image_variations_transform 硬體需求較低
+    #  ===  style transform two images  ===
+    # 目前提供 1.stable_diffusion_transform, 2.sd_image_variations_transform
+    # 預設使用 stable_diffusion_transform 跑比較快
 
     # 風格轉換
     try:
-        # 取得 transform_path & 風格轉換參考圖
-        transform_path = Path(f'{common.config.get("image", "transform_path")}')
+
+        # ===  取得 transform_path & 風格轉換參考圖  ===
+        transform_path = Path(f'{config.get("image", "transform_path")}')
         logger.debug(f'style_ref_image: {style_ref_image}, transform_path: {transform_path}')
+
 
         # === 直接從全域單例工廠取得常駐記憶體的模型 ===
         try:
@@ -147,24 +170,34 @@ def upload_image():
             logger.error(f"ValueError: {ve}", exc_info=True)
             return jsonify({"error": str(ve)}), 400
 
-        ### === 開始跑預測 ===
-        svct = ImageTransformService(model=t_model)
 
-        ## 原圖 transform
+        # === 開始跑預測 ===
+        svct = ImageTransform(model=t_model)
+
+
+        # === 原圖 transform ===
         origin_image_transform_start = time.perf_counter()
         origin_image_transform = svct.generate(ora_path, Path(style_ref_image))
-        origin_transform_path = save_image_with_timestamp( # save image
-            image=origin_image_transform, save_transform_dir=transform_path / transform_model, file_name=ora_file_name
+        # save image
+        origin_transform_path, origin_transform_md5= save_image_with_md5(
+            image=origin_image_transform, save_transform_dir=transform_path / transform_model, file_name=ora_filename
         )
+        logger.debug(f"origin_transform_path: {ora_path}, origin_transform_md5: {ora_md5}")
         origin_image_transform_cost = round(time.perf_counter() - origin_image_transform_start, 3)
 
-        ## 相似圖 transform
+
+        # ===  相似圖 transform ===
         similar_image_transform_start = time.perf_counter()
         similar_image_transform = ora_path
-        similar_transform_path = similar_image_transform # save image
+        # save image
+        similar_transform_path = similar_image_transform
+        logger.debug(f"similar_transform_path: {ora_path}, similar_transform_md5: {ora_md5}")
         similar_image_transform_cost = round(time.perf_counter() - similar_image_transform_start, 3)
 
+
+        # ===  print transform images path ===
         logger.debug(f"origin_transform_path: {origin_transform_path}, similar_transform_path: {similar_transform_path}")
+
 
     except Exception as e:
         logger.error(f"Exception: {e}", exc_info=True)
@@ -174,23 +207,23 @@ def upload_image():
 
 ########################################################################################################################
 
-# 組合 return data 字典
+#  ===  組合 return data 字典  ===
     response_data = {
         "success": True,
         # 偵測圖片參數
-        "detector_image": f"{common.config.get('server', 'web_base_url')}/{detect_path.as_posix()}",
+        "detector_image": f"{web_base_url}/{detect_path.as_posix()}",
         "predict_list": predict_list,
         "tag_results": tag_results,
         "detector_image_cost": detector_image_cost,
         # 向量搜尋參數
-        "similar_image": f"{common.config.get('server', 'web_base_url')}/{similar_path.as_posix()}",
+        "similar_image": f"{web_base_url}/{similar_path.as_posix()}",
         "similar_image_cost": similar_image_cost,
         # transform model 參數
-        "origin_image_transform": f"{common.config.get('server', 'web_base_url')}/{origin_transform_path.as_posix()}",
+        "origin_image_transform": f"{web_base_url}/{origin_transform_path.as_posix()}",
         "origin_image_transform_cost": origin_image_transform_cost,
-        "similar_image_transform": f"{common.config.get('server', 'web_base_url')}/{similar_transform_path.as_posix()}",
+        "similar_image_transform": f"{web_base_url}/{similar_transform_path.as_posix()}",
         "similar_image_transform_cost": similar_image_transform_cost,
-        "image_process_count": get_image_process_count("image_process"),
+        "image_process_count": get_image_process_count(SysState(lock_class=ImageConst.IMAGE_PROCESS)),
         # cost time
         "api_cost": round(time.perf_counter() - api_start, 3),
     }

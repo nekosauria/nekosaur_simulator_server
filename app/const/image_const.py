@@ -132,5 +132,8 @@ class ImageConst:
         # Android
         'avif',
         # RAW 格式 (部分高階手機)
-        'dng',
+        'dng'
     }
+
+    # sqlite lock class
+    IMAGE_PROCESS = "image_process"

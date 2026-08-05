@@ -1,4 +1,6 @@
-from dao.sys_state import count_records
+from dao.sys_state import get_count
+from entity.sys_state import SysState
 
-def get_image_process_count(lock_class):
-    return count_records(lock_class)
+
+def get_image_process_count(state: SysState):
+    return get_count(state)

@@ -3,7 +3,7 @@ from PIL import Image
 
 from model.interface.base_transform_model import BaseTransformModel
 
-class ImageTransformService:
+class ImageTransform:
 
     def __init__(self, model: BaseTransformModel):
         self._model = model
