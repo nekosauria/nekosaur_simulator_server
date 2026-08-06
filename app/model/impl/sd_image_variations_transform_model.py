@@ -65,20 +65,20 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             break
 
     @override
-    def generate(self, init_image_path: Path, style_ref_image: Path) -> Image.Image:
-        # 1. 讀取並統一基本尺寸
-        init_image = resize_with_padding(Image.open(init_image_path), target_size=(256, 256))
+    def generate(self, req_image: Image.Image, style_ref_image: Path) -> Image.Image:
+        # 讀取並統一基本尺寸
+        req_image = resize_with_padding(req_image, target_size=(256, 256))
         ref_image = resize_with_padding(Image.open(style_ref_image), target_size=(256, 256))
 
-        # 2. 轉為 0 ~ 1 區間的 Tensor
+        # 轉為 0 ~ 1 區間的 Tensor
         to_tensor = transforms.ToTensor()
-        ora_tensor = to_tensor(init_image).to(self.device, dtype=self.dtype)
+        req_tensor = to_tensor(req_image).to(self.device, dtype=self.dtype)
         ref_tensor = to_tensor(ref_image).to(self.device, dtype=self.dtype)
 
         # 在 0~1 的 RGB 空間做加權融合！
-        fused_tensor = (ora_tensor * self.ora_point) + (ref_tensor * self.ref_point)
+        fused_tensor = (req_tensor * self.ora_point) + (ref_tensor * self.ref_point)
 
-        # 4. 融合完成後，才做 CLIP 標準預處理 (Resize + Normalize)
+        # 融合完成後，才做 CLIP 標準預處理 (Resize + Normalize)
         clip_normalize = transforms.Compose([
             transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC, antialias=False),
             transforms.Normalize([0.48145466, 0.4578275, 0.40821073], [0.26862954, 0.26130258, 0.27577711]),
@@ -86,10 +86,10 @@ class SDImageVariationsTransformModel(BaseTransformModel):
 
         inp_fusion = clip_normalize(fused_tensor).unsqueeze(0).to(self.device, dtype=self.dtype)
 
-        # 5. 清理顯存
+        # 清理顯存
         empty_device_cache(self.device)
 
-        # 6. 推論生成 (使用 attribute .images[0] 防範 dict 回傳差異)
+        # 推論生成 (使用 attribute .images[0] 防範 dict 回傳差異)
         result = self.pipe(
             image=inp_fusion,
             guidance_scale=self.guidance_scale,

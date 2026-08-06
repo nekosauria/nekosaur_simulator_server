@@ -27,18 +27,18 @@ def init_stage():
     # 資料夾檢查並建立所需資料夾
     dirs_to_create = [
         # api (thecatapi) path
-        os.path.join(app.root_path, config.get('api', 'thecatapi_ora_img_path')),
-        os.path.join(app.root_path, config.get('api', 'thecatapi_detect_path'), ImageConst.MODEL_TORCH),
-        os.path.join(app.root_path, config.get('api', 'thecatapi_detect_path'), ImageConst.MODEL_YOLO),
-        os.path.join(app.root_path, config.get('api', 'thecatapi_transform_img_path'), ImageConst.MODEL_STABLE_DIFFUSION),
-        os.path.join(app.root_path, config.get('api', 'thecatapi_transform_img_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
+        os.path.join(app.root_path, config.get('image', 'thecatapi_fetch_path')),
+        os.path.join(app.root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_TORCH),
+        os.path.join(app.root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_YOLO),
+        os.path.join(app.root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_STABLE_DIFFUSION),
+        os.path.join(app.root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
 
-        # user_input path
-        os.path.join(app.root_path, config.get('image', 'user_input_ora_path')),
-        os.path.join(app.root_path, config.get('image', 'user_input_detect_path'), ImageConst.MODEL_TORCH),
-        os.path.join(app.root_path, config.get('image', 'user_input_detect_path'), ImageConst.MODEL_YOLO),
-        os.path.join(app.root_path, config.get('image', 'user_input_transform_path'), ImageConst.MODEL_STABLE_DIFFUSION),
-        os.path.join(app.root_path, config.get('image', 'user_input_transform_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
+        # user_upload path
+        os.path.join(app.root_path, config.get('image', 'user_upload_ora_path')),
+        os.path.join(app.root_path, config.get('image', 'user_upload_detect_path'), ImageConst.MODEL_TORCH),
+        os.path.join(app.root_path, config.get('image', 'user_upload_detect_path'), ImageConst.MODEL_YOLO),
+        os.path.join(app.root_path, config.get('image', 'user_upload_transform_path'), ImageConst.MODEL_STABLE_DIFFUSION),
+        os.path.join(app.root_path, config.get('image', 'user_upload_transform_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
 
         # log path
         os.path.join(app.root_path, config.get('global', 'log_path'))

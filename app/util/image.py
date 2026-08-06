@@ -71,7 +71,7 @@ def resize_with_padding(image, target_size=(512, 512)):
 
 def save_image_with_md5(
     image: Image.Image,
-    save_transform_dir: Path,
+    save_dir: Path,
     file_name: str = "result",
     convert_jpg: bool = True,
     quality: int = 90,
@@ -79,7 +79,7 @@ def save_image_with_md5(
     """將 PIL 圖片物件儲存至指定目錄，自動加上 md5 並回傳 (路徑, md5_hash)。
 
         :param image: PIL Image 物件
-        :param save_transform_dir: 儲存目錄
+        :param save_dir: 儲存目錄
         :param file_name: 檔名 (可帶原副檔名)
         :param convert_jpg: 是否強制轉換為 .jpg 格式 (預設為 True)
         :param quality: 若為 JPEG 格式時的壓縮品質 (1-100)
@@ -117,7 +117,7 @@ def save_image_with_md5(
 
     # 3. 組合檔名並寫入實體檔案
     stem = Path(file_name).stem
-    out_path = save_transform_dir / f"{md5_hash}_{stem}{ext}"
+    out_path = save_dir / f"{md5_hash}_{stem}{ext}"
     out_path.write_bytes(image_bytes)
 
     return out_path, md5_hash

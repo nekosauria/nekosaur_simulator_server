@@ -14,11 +14,14 @@ class ImageTransform:
     image_id: int = 0
     """對應的原圖 ID (BIGINT UNSIGNED)，關聯 image.id"""
 
-    transform_model: str = ""
-    """執行的風格轉換模型名稱 (VARCHAR(64))，例如 "sd-image-variations-v2" """
+    md5_hash: str = ""
+    """圖片檔案的 MD5 雜湊值 (CHAR(32))，具有唯一性約束，用於避免重複圖檔寫入"""
 
     transform_path: Path | str = ""
     """風格轉換後生成的新圖片路徑 (VARCHAR(512))，支援 pathlib.Path 或字串"""
+
+    transform_model: str = ""
+    """執行的風格轉換模型名稱 (VARCHAR(64))，例如 "sd-image-variations-v2" """
 
     created_at: Optional[datetime] = None
     """紀錄建立時間 (DATETIME)"""

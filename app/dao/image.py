@@ -1,6 +1,5 @@
 import json
 
-import pymysql
 from entity.image import Image
 from util.mariadb import get_mariadb_connection
 

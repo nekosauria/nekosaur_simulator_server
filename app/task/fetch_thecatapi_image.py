@@ -3,7 +3,9 @@ from pathlib import Path
 
 import requests
 
-from service.image_processor import save_image
+from dto.image_processor import SaveImageRequest, SaveImageResult
+from service.image_metadata import ImageMetadata
+from service.image_processor import ImageProcessor
 from util.common import common
 from entity.image import Image
 
@@ -28,8 +30,9 @@ def fetch_cat_image_url():
     return data
 
 
-def download_image(url: str) -> tuple[Path, str]:
+def download_image(url: str) -> SaveImageResult:
     """下載網路圖片並透過 save_image_with_md5 儲存至指定目錄，回傳 (檔案路徑, md5_hash)。"""
+    # === 原始圖片處理 ===
     # 1. 下載圖片 bytes
     response = requests.get(url, timeout=10)
     response.raise_for_status()
@@ -41,45 +44,59 @@ def download_image(url: str) -> tuple[Path, str]:
     # 3. 取得原始檔名
     fetch_img_name = url.split("/")[-1]
 
-    # 4. 取得儲存目錄並呼叫 save_image_with_md5
-    download_dir = Path(config.get("api", "thecatapi_ora_img_path"))
+    # 儲存原圖
+    fetch_res = ImageProcessor.save_image(SaveImageRequest(
+        req_image=fetch_img,
+        category="thecatapi_fetch_path",
+        file_name=fetch_img_name,
+        sub_dir=None,
+        convert_jpg=False,
+    ))
 
-    download_path, download_md5 = save_image_with_md5(
-        image=fetch_img, save_transform_dir=download_dir, file_name=fetch_img_name, convert_jpg=False
-    )
-
-    return download_path, download_md5
+    return fetch_res
 
 
 def trigger(count=1):
+
+    # 跑批次回圈
     for i in range(count):
         try:
             logger.info(f"Download image {i + 1}/{count}")
 
-            # 取得 fetch api info
+########################################################################################################################
+            #  === 取得 fetch api info ===
             fetch_data = fetch_cat_image_url()
             url = fetch_data[0]["url"]
             logger.debug(f"Image URL: {url}")
 
-            # 下載 image
-            download_path, download_md5 = download_image(url)
-            logger.debug(f"Saved to: {download_path}")
-            logger.debug(f"Absolute download_path: {download_path.resolve()}")
 
-            # 寫入 image table
-            # image -> md5_hash, origin_path, image_source
-            image_id = save_image(Image(
-                            md5_hash=download_md5,
-                            origin_path=download_path,
-                            image_source=config.get('api', "thecatapi_url"),
-                            raw_source=fetch_data
-                      ))
+########################################################################################################################
+            #  === 下載 image ===
+            fetch_res = download_image(url)
+            logger.debug(f"Saved to: {fetch_res.path}")
 
+
+########################################################################################################################
+            #  === 寫入 image table ===
+            # save image metadata
+            image_entity = Image(
+                md5_hash=fetch_res.md5,
+                origin_path=fetch_res.path,
+                image_source=config.get('api', "thecatapi_url"),
+                raw_source=fetch_data
+            )
+            image_id = ImageMetadata.save_image_metadata(image_entity)
             logger.debug(f"image_id: {image_id}")
 
-            # 寫入 detect info
 
-            # 寫入 vector info
+########################################################################################################################
+            #  === 寫入 detect info ===
+
+
+########################################################################################################################
+        #  === 寫入 vector info ===
+
+
 
         except Exception as e:
             logger.exception(

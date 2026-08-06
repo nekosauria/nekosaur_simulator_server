@@ -108,14 +108,10 @@ class StableDiffusionTransformModel(BaseTransformModel):
         logger.info("=== 核心模型與權重已成功載入 GPU，準備就緒！ ===")
 
     @override
-    def generate(self, init_image_path: Path, style_ref_image: Path) -> Image.Image:
-        # load images
-        init_image = load_image(str(init_image_path))
-        ref_image = load_image(str(style_ref_image))
-
-        # 對齊：強迫圖片調整為 512x512 (或 64 的倍數)，防止 VAE 卷積維度出錯產生網格亂碼
-        init_image = resize_with_padding(init_image)
-        ref_image = resize_with_padding(ref_image)
+    def generate(self, req_image: Image.Image, style_ref_image: Path) -> Image.Image:
+        # load style_ref_image
+        req_image = resize_with_padding(req_image, target_size=(256, 256))
+        ref_image = resize_with_padding(Image.open(style_ref_image), target_size=(256, 256))
 
         # 清理 PyTorch 顯存快取（防止上一張圖殘留顯存問題導致解碼出錯）
         empty_device_cache(self.device)
@@ -124,7 +120,7 @@ class StableDiffusionTransformModel(BaseTransformModel):
         result = self.pipe(
             prompt=self.prompt,
             negative_prompt=self.negative_prompt,
-            image=init_image,
+            image=req_image,
             ip_adapter_image=ref_image,
             strength=self.strength,
             guidance_scale=self.guidance_scale,

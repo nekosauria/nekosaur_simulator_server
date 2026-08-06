@@ -4,7 +4,7 @@ from typing import List
 
 from PIL.Image import Image
 
-from dto.detection_result import DetectionResult
+from dto.image_detection import ModelPrediction
 
 class BaseDetectionModel(ABC):
 
@@ -33,6 +33,6 @@ class BaseDetectionModel(ABC):
         ...
 
     @abstractmethod
-    def predict(self, image: Image) -> DetectionResult:
+    def predict(self, image: Image) -> ModelPrediction:
         """執行推論，回傳標準化結果"""
         ...

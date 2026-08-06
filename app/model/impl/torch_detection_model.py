@@ -6,7 +6,7 @@ import torchvision
 from PIL.Image import Image
 
 from const.image_const import ImageConst
-from dto.detection_result import DetectionResult
+from dto.image_detection import ModelPrediction
 from model.interface.base_detection_model import BaseDetectionModel
 from util.common import common
 
@@ -45,7 +45,7 @@ class TorchDetectionModel(BaseDetectionModel):
         self._model.eval()
 
     @override
-    def predict(self, image: Image) -> DetectionResult:
+    def predict(self, image: Image) -> ModelPrediction:
         if self._model is None:
             raise RuntimeError("模型尚未載入，請先呼叫 load()")
 
@@ -122,4 +122,4 @@ class TorchDetectionModel(BaseDetectionModel):
             labels.append(label_idx)
             scores.append(score)
 
-        return DetectionResult(boxes=boxes, labels=labels, scores=scores)
+        return ModelPrediction(boxes=boxes, labels=labels, scores=scores)

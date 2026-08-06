@@ -14,11 +14,14 @@ class ImageDetection:
     image_id: int = 0
     """對應的主圖 ID (BIGINT UNSIGNED)，關聯 image.id"""
 
-    detect_model: str = ""
-    """執行的偵測模型名稱 (VARCHAR(64))，例如 "yolov8n", "yolov11x" """
+    md5_hash: str = ""
+    """圖片檔案的 MD5 雜湊值 (CHAR(32))，具有唯一性約束，用於避免重複圖檔寫入"""
 
     detect_path: Optional[Path | str] = None
     """渲染繪製標註框後的圖片儲存路徑 (VARCHAR(512))，支援 pathlib.Path 或字串"""
+
+    detect_model: str = ""
+    """執行的偵測模型名稱 (VARCHAR(64))，例如 "yolov8n", "yolov11x" """
 
     predict_list: Optional[Dict[str, Any]] = None
     """模型偵測結果的原始 JSON 數據 (JSON)，例如各類別的信心分數與邊界框座標"""

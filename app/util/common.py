@@ -72,5 +72,6 @@ class Common:
         return self._get_project_path(relative_path)
 
 
+# 建立單例物件 (Singleton Instance)
 # ← module 載入時就初始化，之後直接 import 用
 common = Common()

@@ -1,7 +1,27 @@
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from PIL import Image
+
+
+@dataclass
+class DetectionRequest:
+    req_image: Image.Image | None
+    category: str
+    file_name: str
+    detect_model: str
 
 @dataclass
 class DetectionResult:
+    tag_results: dict
+    predict_list: dict
+    detect_path: Path
+    detect_md5: str
+    detect_cost: float
+
+@dataclass
+class ModelPrediction:
     """
     模型推論結果的標準化資料結構。
     所有模型（Torch、YOLO、ONNX...）的 predict() 都必須回傳此格式，

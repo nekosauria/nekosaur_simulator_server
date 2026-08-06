@@ -2,22 +2,29 @@ import json
 import time
 from pathlib import Path
 
+import PIL.Image
+
 from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
 
+from dto.image_detection import DetectionRequest
+from dto.image_processor import SaveImageRequest
+from dto.image_transform import TransformRequest
+from dto.image_upload_response import ImageUploadResponse
+from dto.image_vector_search import VectorSearchRequest
 from dto.lock_config import LockConfig
-from entity.sys_state import SysState
-from service.sys_state import get_image_process_count
-import PIL.Image
+from entity.image import Image
+from entity.sys_state import SysState as SysStateEntity
+from service.image_processor import ImageProcessor
+from service.image_vector_search import ImageVectorSearch
+from service.sys_state import SysState as SysStateService
 
-from util.image import validate_image, save_image_with_md5, collect_image_paths
+from util.image import validate_image, collect_image_paths
 from const.image_const import ImageConst
 from service.image_detection import ImageDetection
 from service.image_transform import ImageTransform
-from model.factory.detection_model_factory import DetectionModelFactory
-from model.factory.transform_model_factory import TransformModelFactory
+from service.image_metadata import ImageMetadata
 from util.common import common
-import numpy as np
 
 
 config = common.config
@@ -34,17 +41,20 @@ lock_config = LockConfig(
 )
 
 
-@image_bp.route('/count', methods=['GET'])
+@image_bp.route(config.get("api","nekosaur_server_count_prefix"), methods=['GET'])
 def get_count():
     # === 取得 api 使用次數 (sqlite) ===
-    count = get_image_process_count(SysState(lock_class="image_process"))
+    image_process_count = SysStateService.get_image_process_count(SysStateEntity(lock_class=ImageConst.IMAGE_PROCESS))
+
+
+    # === 取得參考風格圖 ===
     style_ref_image_paths = Path(config.get('image', "style_ref_image_paths"))
     style_ref_path = collect_image_paths(style_ref_image_paths)
 
 
     # === return data ===
     response_data = {
-        "image_process_count": count,
+        "image_process_count": image_process_count,
         "style_ref_image_paths": style_ref_path
     }
 
@@ -55,183 +65,139 @@ def get_count():
     return jsonify(response_data), 200
 
 
-@image_bp.route('/upload', methods=['POST'])
+@image_bp.route(config.get("api","nekosaur_server_upload_prefix"), methods=['POST'])
 @sqlite_table_lock(lock_config)
 def upload_image():
-########################################################################################################################
-    #  ===  格式校驗 & 取參數  ===
+    # === 格式校驗 & 取參數 ===
+    # api cost flag
     api_start = time.perf_counter()
 
+    # 格式校驗
     ora_file, error, status = validate_image(request.files)
     if error:
         return jsonify({"success": False, "error": error}), status
 
-    ora_filename = ora_file.filename
-
+    # 前端取得參數
+    ora_image = PIL.Image.open(ora_file)
     detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
     transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
     style_ref_image = request.form.get("style_ref_image", config.get('image', "default_style_ref_img"))
-
-    web_base_url = config.get('server', 'web_base_url')
-
     logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
 
-
-########################################################################################################################
-    #  ===  檢查上傳圖是否有貓  ===
-    # 預設使用 yolo 需求較低
-    detector_image_start = time.perf_counter()
-
+    # 其他參數
+    web_base_url = config.get('server', 'web_base_url')
+    web_dns_url = config.get("server", "web_dns_url")
+    upload_prefix = config.get("api", "nekosaur_server_upload_prefix")
 
     try:
-        # === 直接從全域單例工廠取得常駐記憶體的模型 ===
-        try:
-            d_model = DetectionModelFactory.get_model(detect_model)
-        except ValueError as ve:
-            logger.error(f"ValueError: {ve}", exc_info=True)
-            return jsonify({"error": str(ve)}), 400
+        # ===  database 重複驗證 ===
+        if False:
+            # === 若資料庫已有該圖案 md5, 取已經生成 ora & detect image 節省時間 ===
+
+            image_id = 0
+            ora_res = None
+            ...
 
 
-        # === 開始跑預測 ===
-        svcd = ImageDetection(model=d_model)
-        tag_results, predict_list, result_np = svcd.make_detect_image(ora_file)
+        else:
+            # === 原始圖片處理 ===
+            # 儲存原圖
+            ora_res = ImageProcessor.save_image(SaveImageRequest(
+                req_image=ora_image,
+                category="user_upload_ora_path",
+                file_name=ora_file.filename,
+                sub_dir=None,
+                convert_jpg=False
+            ))
+            logger.debug(f"ora_path: {ora_res.path}, ora_md5: {ora_res.md5}")
+            # reset image index
+            ora_image.seek(0)
+
+            # save image metadata
+            image_entity = Image(
+                md5_hash=ora_res.md5,
+                origin_path=ora_res.path,
+                image_source=f'{web_dns_url}{upload_prefix}',
+            )
+            image_id = ImageMetadata.save_image_metadata(image_entity)
 
 
-        # === 儲存原圖 (使用 save_image_with_md5) ===
-        ora_file.seek(0)  # reset image index
+            # === 偵測圖片處理 ===
+            # 偵測 && 下載
+            detect_res = ImageDetection.process_image_detection(
+                DetectionRequest(
+                    req_image=ora_image,
+                    category="user_upload_detect_path",
+                    file_name=ora_file.filename,
+                    detect_model=detect_model,
+                )
+            )
 
-        ora_image = PIL.Image.open(ora_file)  # 載入為 PIL Image 物件
-        ora_dir = Path(config.get("image", "user_input_ora_path"))
+            # save image_detection metadata
 
-        # 使用 save_image_with_md5 儲存並取得自動生成的檔名路徑與 md5
-        ora_path, ora_md5 = save_image_with_md5(
-            image=ora_image, save_transform_dir=ora_dir, file_name=ora_filename, convert_jpg=False
+
+
+        # === vector search ===
+        vector_res = ImageVectorSearch.process_similarity_search(
+            VectorSearchRequest(
+                image_id=0,
+                ora_path=ora_res.path
+            )
         )
-        logger.debug(f"ora_path: {ora_path}, md5: {ora_md5}")
-
-        ora_file.seek(0)  # 讀取完畢後再次重置指標
 
 
-        # === 寫入 detect image ===
-        # ✅ imwrite 前確認 result_image 是合法的 numpy array
-        if result_np is None or not isinstance(result_np, np.ndarray) or result_np.size == 0:
-            raise ValueError("result_np 不合法，無法寫入檔案")
 
-        # 1. 將 NumPy Array (RGB) 轉換為 PIL Image 物件
-        detect_image = PIL.Image.fromarray(result_np)
-
-        # 2. 設定 detect 圖片儲存目錄
-        detect_dir = Path(config.get('image', "user_input_detect_path")) / detect_model
-
-        # 3. 使用 save_image_with_md5 儲存
-        detect_path, detect_md5 = save_image_with_md5(
-            image=detect_image,
-            save_transform_dir=detect_dir,
-            file_name=ora_filename
+        # === ora 風格轉換 ===
+        # 風格轉換 & 下載圖
+        ora_transform_res = ImageTransform.process_image_transform(
+            TransformRequest(
+                req_image=ora_image,
+                category="user_upload_transform_path",
+                file_name=ora_file.filename,
+                transform_model=transform_model,
+                style_ref_image=style_ref_image
+            )
         )
-        logger.debug(
-            f'tag_results: {tag_results}, predict_list: {predict_list}, detect_path: {detect_path}, detect_md5: {detect_md5}')
-        detector_image_cost = round(time.perf_counter() - detector_image_start, 3)
+
+        # 寫 image_embedding metadata
+
+
+
+        # === vector search 風格轉換 ===
+        # 風格轉換 & 下載圖
+
+        # 寫 image_embedding metadata
+
+
+    except ValueError as ve:
+        logger.error(f"ValueError: {ve}", exc_info=True)
+        return jsonify({"error": str(ve)}), 400
 
     except Exception as e:
         logger.error(f"Exception: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
+    # === 組裝 response ===
+    response = ImageUploadResponse(
+        success=True,
+        detector_image=f"{web_base_url}/{detect_res.detect_path.as_posix()}",
+        predict_list=detect_res.predict_list,
+        tag_results=detect_res.tag_results,
+        detector_image_cost=detect_res.detect_cost,
+        similar_image=f"{web_base_url}/{vector_res.similar_path.as_posix()}",
+        similar_image_cost=vector_res.vector_search_cost,
+        origin_image_transform=f"{web_base_url}/{ora_transform_res.transform_path.as_posix()}",
+        origin_image_transform_cost=ora_transform_res.transform_cost,
+        similar_image_transform=f"{web_base_url}/{ora_transform_res.transform_path.as_posix()}",
+        similar_image_transform_cost=ora_transform_res.transform_cost,
+        image_process_count=SysStateService.get_image_process_count(SysStateEntity(lock_class=ImageConst.IMAGE_PROCESS)),
+        api_cost=round(time.perf_counter() - api_start, 3),
+    )
 
-########################################################################################################################
-    #  === vector search similar image  ===
-    similar_image_start = time.perf_counter()
-
-    similar_path = ora_path
-
-    logger.debug(f'similar_path:{similar_path}')
-    similar_image_cost = round(time.perf_counter() - similar_image_start, 3)
-
-
-
-########################################################################################################################
-    #  ===  style transform two images  ===
-    # 目前提供 1.stable_diffusion_transform, 2.sd_image_variations_transform
-    # 預設使用 stable_diffusion_transform 跑比較快
-
-    # 風格轉換
-    try:
-
-        # ===  取得 transform_path & 風格轉換參考圖  ===
-        transform_path = Path(f'{config.get("image", "transform_path")}')
-        logger.debug(f'style_ref_image: {style_ref_image}, transform_path: {transform_path}')
-
-
-        # === 直接從全域單例工廠取得常駐記憶體的模型 ===
-        try:
-            t_model = TransformModelFactory.get_model(transform_model)
-        except ValueError as ve:
-            logger.error(f"ValueError: {ve}", exc_info=True)
-            return jsonify({"error": str(ve)}), 400
-
-
-        # === 開始跑預測 ===
-        svct = ImageTransform(model=t_model)
-
-
-        # === 原圖 transform ===
-        origin_image_transform_start = time.perf_counter()
-        origin_image_transform = svct.generate(ora_path, Path(style_ref_image))
-        # save image
-        origin_transform_path, origin_transform_md5= save_image_with_md5(
-            image=origin_image_transform, save_transform_dir=transform_path / transform_model, file_name=ora_filename
-        )
-        logger.debug(f"origin_transform_path: {ora_path}, origin_transform_md5: {ora_md5}")
-        origin_image_transform_cost = round(time.perf_counter() - origin_image_transform_start, 3)
-
-
-        # ===  相似圖 transform ===
-        similar_image_transform_start = time.perf_counter()
-        similar_image_transform = ora_path
-        # save image
-        similar_transform_path = similar_image_transform
-        logger.debug(f"similar_transform_path: {ora_path}, similar_transform_md5: {ora_md5}")
-        similar_image_transform_cost = round(time.perf_counter() - similar_image_transform_start, 3)
-
-
-        # ===  print transform images path ===
-        logger.debug(f"origin_transform_path: {origin_transform_path}, similar_transform_path: {similar_transform_path}")
-
-
-    except Exception as e:
-        logger.error(f"Exception: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
-
-
-
-########################################################################################################################
-
-#  ===  組合 return data 字典  ===
-    response_data = {
-        "success": True,
-        # 偵測圖片參數
-        "detector_image": f"{web_base_url}/{detect_path.as_posix()}",
-        "predict_list": predict_list,
-        "tag_results": tag_results,
-        "detector_image_cost": detector_image_cost,
-        # 向量搜尋參數
-        "similar_image": f"{web_base_url}/{similar_path.as_posix()}",
-        "similar_image_cost": similar_image_cost,
-        # transform model 參數
-        "origin_image_transform": f"{web_base_url}/{origin_transform_path.as_posix()}",
-        "origin_image_transform_cost": origin_image_transform_cost,
-        "similar_image_transform": f"{web_base_url}/{similar_transform_path.as_posix()}",
-        "similar_image_transform_cost": similar_image_transform_cost,
-        "image_process_count": get_image_process_count(SysState(lock_class=ImageConst.IMAGE_PROCESS)),
-        # cost time
-        "api_cost": round(time.perf_counter() - api_start, 3),
-    }
-
-    # === 送出前 Print Log ===
     logger.debug("=== [/upload Response Data] ===")
-    # pretty print
-    logger.debug(json.dumps(response_data, indent=2, ensure_ascii=False))
+    logger.debug(json.dumps(response.to_dict(), indent=2, ensure_ascii=False))
 
-    return jsonify(response_data), 200
+    return jsonify(response.to_dict()), 200
+
 
