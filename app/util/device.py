@@ -12,7 +12,7 @@ def get_gpu_device() -> Any:
     優先序: NVIDIA/AMD (cuda) -> Intel Arc (xpu) -> Mac (mps) -> CPU 發生任何異常或未偵測到加速器時，預設回傳 'cpu'
     """
     try:
-        # 1. 檢查 NVIDIA GPU 或 AMD GPU (Linux 下 ROCm 也是對應 cuda)
+        # 檢查 NVIDIA GPU 或 AMD GPU (Linux 下 ROCm 也是對應 cuda)
         if torch.cuda.is_available():
             try:
                 device_name = torch.cuda.get_device_name(0).lower()
@@ -32,17 +32,17 @@ def get_gpu_device() -> Any:
 
             return "cuda"
 
-        # 2. 檢查 Intel Arc / Intel 顯示卡 (保持原樣回傳 torch.device("xpu"))
+        # 檢查 Intel Arc / Intel 顯示卡 (保持原樣回傳 torch.device("xpu"))
         if hasattr(torch, "xpu") and torch.xpu.is_available():
             logger.info("Detected Intel GPU (Arc/Flex) -> Using 'xpu'")
             return torch.device("xpu")
 
-        # 3. 檢查 Mac / Apple Silicon 後端 (MPS)
+        # 檢查 Mac / Apple Silicon 後端 (MPS)
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             logger.info("Detected Apple Silicon 後端 -> Using 'mps'")
             return "mps"
 
-        # 4. 未偵測到任何可用的硬體加速器
+        # 未偵測到任何可用的硬體加速器
         logger.info("No GPU acceleration detected -> Falling back to 'cpu'")
         return "cpu"
 
@@ -70,7 +70,7 @@ def get_gpu_dtype() -> torch.dtype:
         # 如果回傳的是 torch.device 物件，統一轉成字串小寫處理
         device_str = str(device).lower()
 
-        # 1. NVIDIA / AMD GPU (cuda)
+        # NVIDIA / AMD GPU (cuda)
         if "cuda" in device_str:
             # 檢查 CUDA 驅動與顯卡是否支援 bfloat16 (RTX 30 系列以上 / A100 / H100 等)
             if hasattr(torch.cuda, "is_bf16_supported") and torch.cuda.is_bf16_supported():
@@ -80,7 +80,7 @@ def get_gpu_dtype() -> torch.dtype:
                 logger.debug("CUDA does not support bfloat16 -> Falling back to 'torch.float16'")
                 return torch.float16
 
-        # 2. Intel GPU (xpu)
+        # Intel GPU (xpu)
         elif "xpu" in device_str:
             if hasattr(torch.xpu, "is_bf16_supported") and torch.xpu.is_bf16_supported():
                 logger.debug("XPU supports bfloat16 -> Using 'torch.bfloat16'")
@@ -89,13 +89,13 @@ def get_gpu_dtype() -> torch.dtype:
                 logger.info("XPU using 'torch.float16'")
                 return torch.float16
 
-        # 3. Apple Silicon (mps)
+        # Apple Silicon (mps)
         elif "mps" in device_str:
             # Apple Silicon 的 Metal 引擎針對 float16 做了極致優化（不建議在 MPS 使用 bfloat16）
             logger.debug("MPS detected -> Using 'torch.float16'")
             return torch.float16
 
-        # 4. CPU (cpu) 或其他例外
+        # CPU (cpu) 或其他例外
         else:
             logger.debug("CPU detected -> Using 'torch.float32' for safety")
             return torch.float32
@@ -109,7 +109,7 @@ def get_gpu_dtype() -> torch.dtype:
 
 
 
-def empty_device_cache(device: str) -> None:
+def clear_device_cache(device: str) -> None:
     """
     釋放指定裝置上，PyTorch 快取分配器持有但目前未使用的記憶體。
 
@@ -122,7 +122,7 @@ def empty_device_cache(device: str) -> None:
 
     if device == "cuda":
         if not torch.cuda.is_available():
-            logger.warning("empty_device_cache: device='cuda' 但 CUDA 不可用，略過")
+            logger.warning("clear_device_cache: device='cuda' 但 CUDA 不可用，略過")
             return
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
@@ -131,7 +131,7 @@ def empty_device_cache(device: str) -> None:
 
     elif device == "mps":
         if not torch.backends.mps.is_available():
-            logger.warning("empty_device_cache: device='mps' 但 MPS 不可用，略過")
+            logger.warning("clear_device_cache: device='mps' 但 MPS 不可用，略過")
             return
         torch.mps.empty_cache()
         logger.debug("MPS cache cleared")
@@ -142,7 +142,7 @@ def empty_device_cache(device: str) -> None:
             torch.xpu.empty_cache()
             logger.debug("XPU cache cleared")
         else:
-            logger.warning("empty_device_cache: device='xpu' 但不可用，略過")
+            logger.warning("clear_device_cache: device='xpu' 但不可用，略過")
 
     elif device == "cpu":
         # CPU 沒有「顯存快取」這回事，頂多手動觸發一次 Python GC
@@ -150,4 +150,4 @@ def empty_device_cache(device: str) -> None:
         logger.debug("CPU: triggered gc.collect()")
 
     else:
-        logger.warning(f"empty_device_cache: 未知的 device='{device}'，略過")
+        logger.warning(f"clear_device_cache: 未知的 device='{device}'，略過")

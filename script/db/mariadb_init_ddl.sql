@@ -1,3 +1,12 @@
+SET FOREIGN_KEY_CHECKS = 0;
+
+TRUNCATE TABLE image_embedding;
+TRUNCATE TABLE image_transform;
+TRUNCATE TABLE image_detection;
+TRUNCATE TABLE image;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
 DROP TABLE IF EXISTS image_embedding;
 DROP TABLE IF EXISTS image_transform;
 DROP TABLE IF EXISTS image_detection;

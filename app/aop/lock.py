@@ -74,7 +74,7 @@ def _acquire_lock(config: LockConfig) -> SysState:
                         return lock_state
 
         except sqlite3.Error as e:
-            logger.error(f"[❌ DB Error] {e}")
+            logger.error(f"[❌ DB Error] {e}", exc_info=True)
 
         time.sleep(config.retry_interval)  # 沒搶到，等一下再重試
 
@@ -94,4 +94,4 @@ def _release_lock(lock_state: SysState):
                 """, (lock_state.id,))
         logger.debug(f"[🔓 LOCK RELEASED] 已釋放鎖 id={lock_state.id}\n")
     except sqlite3.Error as e:
-        logger.error(f"[❌ RELEASE Error] {e}")
+        logger.error(f"[❌ RELEASE Error] {e}", exc_info=True)

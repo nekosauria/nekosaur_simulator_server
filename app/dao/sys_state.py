@@ -24,13 +24,13 @@ class SysState:
         key = sys_state.lock_class
 
         with self._lock:
-            # 1. 記憶體快取 (Cache Layer) - 1 秒內有查詢過直接秒回，完全不用觸發 DB
+            # 記憶體快取 (Cache Layer) - 1 秒內有查詢過直接秒回，完全不用觸發 DB
             if key in self._cache:
                 cached_count, timestamp = self._cache[key]
                 if now - timestamp < self._ttl_cache:
                     return cached_count
 
-            # 2. 快取過期，開啟連線查詢，查完立刻 close()
+            # 快取過期，開啟連線查詢，查完立刻 close()
             with sqlite_connection() as db:
                 cursor = db.execute(
                     """
@@ -42,7 +42,7 @@ class SysState:
                 row = cursor.fetchone()
                 count = row[0] if row else 0
 
-            # 3. 更新快取
+            # 更新快取
             self._cache[key] = (count, now)
             return count
 

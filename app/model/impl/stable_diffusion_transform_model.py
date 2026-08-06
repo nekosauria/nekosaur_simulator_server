@@ -10,7 +10,7 @@ from model.interface.base_transform_model import BaseTransformModel
 from pathlib import Path
 
 from util.common import common
-from util.device import empty_device_cache
+from util.device import clear_device_cache
 from util.image import resize_with_padding
 
 
@@ -114,7 +114,7 @@ class StableDiffusionTransformModel(BaseTransformModel):
         ref_image = resize_with_padding(Image.open(style_ref_image), target_size=(256, 256))
 
         # 清理 PyTorch 顯存快取（防止上一張圖殘留顯存問題導致解碼出錯）
-        empty_device_cache(self.device)
+        clear_device_cache(self.device)
 
         # inference
         result = self.pipe(

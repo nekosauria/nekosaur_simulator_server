@@ -9,7 +9,7 @@ from pathlib import Path
 from const.image_const import ImageConst
 from model.interface.base_transform_model import BaseTransformModel
 from util.common import common
-from util.device import empty_device_cache
+from util.device import clear_device_cache
 from util.image import resize_with_padding
 
 logger = common.logger
@@ -87,7 +87,7 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         inp_fusion = clip_normalize(fused_tensor).unsqueeze(0).to(self.device, dtype=self.dtype)
 
         # 清理顯存
-        empty_device_cache(self.device)
+        clear_device_cache(self.device)
 
         # 推論生成 (使用 attribute .images[0] 防範 dict 回傳差異)
         result = self.pipe(

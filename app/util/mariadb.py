@@ -1,4 +1,6 @@
+# util/mariadb.py
 import pymysql.cursors
+from contextlib import contextmanager
 from dbutils.pooled_db import PooledDB
 
 from util.common import common
@@ -25,3 +27,17 @@ _pool = PooledDB(
 
 def get_mariadb_connection() -> pymysql.Connection:
     return _pool.connection()
+
+
+@contextmanager
+def mariadb_connection():
+    """
+    連線用完自動歸還連線池的 context manager。
+    conn.close() 在連線池模式下實際是「歸還」而非真的關閉，
+    這裡用 try/finally 統一管理，避免每個 repository 方法各自重複 try/finally。
+    """
+    conn = get_mariadb_connection()
+    try:
+        yield conn
+    finally:
+        conn.close()  # 歸還連線給連線池，不是真的關閉

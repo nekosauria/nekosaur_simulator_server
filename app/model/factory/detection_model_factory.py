@@ -33,11 +33,10 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
         torch_path = Path(f'{config.get('model', "maskrcnn_model")}')
         torch_model = TorchDetectionModel(
             model_path=torch_path,
-            score_threshold=ImageConst.SCORE_THRESHOLD,
             device=gpu_device
         )
         torch_model.load()
-        cls._instances[ImageConst.MODEL_TORCH] = torch_model
+        cls._instances[torch_model.name] = torch_model
         torch_cost = round(perf_counter() - torch_start, 3)
         logger.info(f"=== torch 模型載入完畢，耗時 {torch_cost}s ===")
 
@@ -48,11 +47,10 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
         yolo_path = Path(f'{config.get('model', "yolo11n")}')
         yolo_model = YoloDetectionModel(
             model_path=yolo_path,
-            score_threshold=ImageConst.SCORE_THRESHOLD,
             device=gpu_device
         )
         yolo_model.load()
-        cls._instances[ImageConst.MODEL_YOLO] = yolo_model
+        cls._instances[yolo_model.name] = yolo_model
         yolo_cost = round(perf_counter() - yolo_start, 3)
         logger.info(f"=== yolo 模型載入完畢，耗時 {yolo_cost}s ===")
 

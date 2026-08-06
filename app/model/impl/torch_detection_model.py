@@ -14,11 +14,10 @@ logger = common.logger
 
 
 class TorchDetectionModel(BaseDetectionModel):
-    def __init__(self, model_path: Path, score_threshold: float = 0.5, device: str = "cpu"):
+    def __init__(self, model_path: Path, device: str = "cpu"):
         self._model_path = model_path
         self.device = device
         self._model = None
-        self._score_threshold = score_threshold
         self._labels = ImageConst.TORCH_LABELS
 
     @override
@@ -29,7 +28,7 @@ class TorchDetectionModel(BaseDetectionModel):
     @override
     @property
     def name(self) -> str:
-        return "torchvision.models.detection.maskrcnn_resnet50_fpn"
+        return ImageConst.MODEL_TORCH
 
     @override
     @property

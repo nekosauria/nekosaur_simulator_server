@@ -7,24 +7,31 @@ import PIL.Image
 from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
 
+
+
+from util.image import validate_image, collect_image_paths
+from const.image_const import ImageConst
+from util.common import common
+
 from dto.image_detection import DetectionRequest
 from dto.image_processor import SaveImageRequest
 from dto.image_transform import TransformRequest
 from dto.image_upload_response import ImageUploadResponse
 from dto.image_vector_search import VectorSearchRequest
 from dto.lock_config import LockConfig
-from entity.image import Image
-from entity.sys_state import SysState as SysStateEntity
-from service.image_processor import ImageProcessor
-from service.image_vector_search import ImageVectorSearch
+
+from service.image_detection import ImageDetection as ImageDetectionService
+from service.image_transform import ImageTransform as ImageTransformService
+from service.image_metadata import ImageMetadata as ImageMetadataService
+from service.image_processor import ImageProcessor as ImageProcessorService
+from service.image_vector_search import ImageVectorSearch as ImageVectorSearchService
 from service.sys_state import SysState as SysStateService
 
-from util.image import validate_image, collect_image_paths
-from const.image_const import ImageConst
-from service.image_detection import ImageDetection
-from service.image_transform import ImageTransform
-from service.image_metadata import ImageMetadata
-from util.common import common
+from entity.image import Image as ImageEntity
+from entity.image_detection import ImageDetection as ImageDetectionEntity
+from entity.image_transform import ImageTransform as ImageTransformEntity
+
+from entity.sys_state import SysState as SysStateEntity
 
 
 config = common.config
@@ -48,14 +55,14 @@ def get_count():
 
 
     # === 取得參考風格圖 ===
-    style_ref_image_paths = Path(config.get('image', "style_ref_image_paths"))
-    style_ref_path = collect_image_paths(style_ref_image_paths)
+    style_ref_image_path = Path(config.get('image', "style_ref_image_path"))
+    style_ref_image_paths = collect_image_paths(style_ref_image_path)
 
 
     # === return data ===
     response_data = {
         "image_process_count": image_process_count,
-        "style_ref_image_paths": style_ref_path
+        "style_ref_image_paths": style_ref_image_paths
     }
 
     # pretty print data
@@ -100,9 +107,9 @@ def upload_image():
 
 
         else:
-            # === 原始圖片處理 ===
+            #  === 下載 image info ===
             # 儲存原圖
-            ora_res = ImageProcessor.save_image(SaveImageRequest(
+            ora_res = ImageProcessorService.save_image(SaveImageRequest(
                 req_image=ora_image,
                 category="user_upload_ora_path",
                 file_name=ora_file.filename,
@@ -110,21 +117,19 @@ def upload_image():
                 convert_jpg=False
             ))
             logger.debug(f"ora_path: {ora_res.path}, ora_md5: {ora_res.md5}")
-            # reset image index
-            ora_image.seek(0)
 
             # save image metadata
-            image_entity = Image(
+            image_entity = ImageEntity(
                 md5_hash=ora_res.md5,
                 origin_path=ora_res.path,
                 image_source=f'{web_dns_url}{upload_prefix}',
             )
-            image_id = ImageMetadata.save_image_metadata(image_entity)
+            image_id = ImageMetadataService.save_image_metadata(image_entity)
 
 
-            # === 偵測圖片處理 ===
+            #  === 寫入 detect info ===
             # 偵測 && 下載
-            detect_res = ImageDetection.process_image_detection(
+            detect_res = ImageDetectionService.process_image_detection(
                 DetectionRequest(
                     req_image=ora_image,
                     category="user_upload_detect_path",
@@ -134,22 +139,31 @@ def upload_image():
             )
 
             # save image_detection metadata
+            image_detection_entity = ImageDetectionEntity(
+                image_id=image_id,
+                md5_hash=detect_res.detect_md5,
+                detect_path=detect_res.detect_path,
+                detect_model=detect_model,
+                predict_list=detect_res.predict_list,
+                tag_results=detect_res.tag_results,
+            )
+            ImageMetadataService.save_image_detection_metadata(image_detection_entity)
 
 
-
-        # === vector search ===
-        vector_res = ImageVectorSearch.process_similarity_search(
+        #  === 寫入 vector info ===
+        vector_res = ImageVectorSearchService.process_similarity_search(
             VectorSearchRequest(
                 image_id=0,
                 ora_path=ora_res.path
             )
         )
 
+        # 寫 image_embedding metadata
 
 
-        # === ora 風格轉換 ===
+        #  === 寫入 ora transform info ===
         # 風格轉換 & 下載圖
-        ora_transform_res = ImageTransform.process_image_transform(
+        ora_transform_res = ImageTransformService.process_image_transform(
             TransformRequest(
                 req_image=ora_image,
                 category="user_upload_transform_path",
@@ -159,14 +173,20 @@ def upload_image():
             )
         )
 
-        # 寫 image_embedding metadata
+        # 寫 image_transform metadata
+        image_transform_entity = ImageTransformEntity(
+            image_id=image_id,
+            md5_hash=ora_transform_res.transform_md5,
+            transform_path=ora_transform_res.transform_path,
+            transform_model=transform_model,
+        )
+        ImageMetadataService.save_image_transformation_metadata(image_transform_entity)
 
 
-
-        # === vector search 風格轉換 ===
+        #  === 寫入 vector_search transform info ===
         # 風格轉換 & 下載圖
 
-        # 寫 image_embedding metadata
+        # 寫 image_transform metadata
 
 
     except ValueError as ve:

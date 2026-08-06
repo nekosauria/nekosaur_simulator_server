@@ -6,7 +6,9 @@ class ImageConst:
 
     # 💡 新增模型名稱常數
     # detect
+    # "torchvision.models.detection.maskrcnn_resnet50_fpn"
     MODEL_TORCH = "torch"
+    # "ultralytics.YOLO"
     MODEL_YOLO = "yolo"
 
     # transform
@@ -119,9 +121,6 @@ class ImageConst:
      'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
      'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
      'toothbrush']
-
-    SCORE_THRESHOLD= 0.5
-
 
     ALLOWED_EXTENSIONS = {
         # 一般常見格式

@@ -14,11 +14,10 @@ logger = common.logger
 class YoloDetectionModel(BaseDetectionModel):
     """YOLO 系列模型（ultralytics）"""
 
-    def __init__(self, model_path: Path, score_threshold: float = 0.5, device: str = "cpu"):
+    def __init__(self, model_path: Path, device: str = "cpu"):
         self._model_path = model_path
         self.device = device
         self._model = None
-        self._score_threshold = score_threshold
         self._labels = ImageConst.YOLO_LABELS
 
     @override
@@ -29,7 +28,7 @@ class YoloDetectionModel(BaseDetectionModel):
     @override
     @property
     def name(self) -> str:
-        return "ultralytics.YOLO"
+        return ImageConst.MODEL_YOLO
 
     @override
     @property

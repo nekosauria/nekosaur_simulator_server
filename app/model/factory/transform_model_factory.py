@@ -13,7 +13,7 @@ from util.device import get_gpu_device, get_gpu_dtype
 logger = common.logger
 
 class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
-    """全域模型工廠（單例模式），確保每種 transform 模型在記憶體中只會被加載一次"""
+    """全域模型工廠（單例模式），確保每種 tra`nsform 模型在記憶體中只會被加載一次"""
     _instances: Dict[str, BaseTransformModel] = {}
 
     @override
@@ -33,10 +33,9 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
             ip_adapter_model_path=Path(f'{config.get('model', "ip_adapter_model_path")}'),
             device=gpu_device,
             dtype=gpu_dtype,
-            ip_adapter_scale=0.4
         )
         sd_model.load()
-        cls._instances[ImageConst.MODEL_STABLE_DIFFUSION] = sd_model
+        cls._instances[sd_model.name] = sd_model
         stable_diffusion_transform_cost = round(perf_counter() - stable_diffusion_transform_start, 3)
         logger.info(f"=== stable_diffusion_transform 模型載入完畢，耗時 {stable_diffusion_transform_cost}s ===")
 
@@ -48,11 +47,9 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
             model_path=Path(f'{config.get('model', "sd_image_variations_model_path")}'),
             device=gpu_device,
             dtype=gpu_dtype,
-            ora_point=0.7,
-            ref_point=0.3
         )
         sdv_model.load()
-        cls._instances[ImageConst.MODEL_SD_IMAGE_VARIATIONS] = sdv_model
+        cls._instances[sdv_model.name] = sdv_model
         sd_image_variations_transform_start_cost = round(perf_counter() - sd_image_variations_transform_start, 3)
         logger.info(f"=== sd_image_variations_transform 模型載入完畢，耗時 {sd_image_variations_transform_start_cost}s ===")
 

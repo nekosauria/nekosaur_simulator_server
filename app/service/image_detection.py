@@ -23,18 +23,18 @@ class ImageDetection:
         self._model = model
 
 
-    def _make_detect_image(self, req_image) -> tuple[dict, dict, np.ndarray]:
+    def _make_detect_image(self, req_image) -> tuple[np.ndarray, dict, dict]:
         """
         接收前端上傳的檔案物件，儲存原始圖片後執行物件偵測，
         並將偵測結果（框線 + 標籤）繪製後存檔。
 
         Args:
-            file: 前端上傳的檔案物件（需支援 .read() 與 .filename）
+            req_image: 前端上傳的檔案物件（需支援 .read() 與 .filename）
 
         Returns:
+                - predict_np (np.ndarray): 偵測結果圖片的網址
                 - tag_results (dict): 預測分數的信心分數
                 - predict_list (dict): 各標籤對應的信心分數
-                - predict_np (np.ndarray): 偵測結果圖片的網址
         """
 
         # init var
@@ -49,24 +49,27 @@ class ImageDetection:
         # -----------------------------------------------------------
 
         # 畫物件偵測框線
-        tag_results, predict_list, predict_np = draw_detections(
-            output, labels, ora_np, ImageConst.SCORE_THRESHOLD
+        predict_np, tag_results, predict_list = draw_detections(
+            ora_np, output, labels
         )
 
-        return tag_results, predict_list, predict_np
+        return  predict_np, tag_results, predict_list
 
 
     @staticmethod
-    def make_detect_image(req: DetectionRequest) -> tuple[dict, dict, np.ndarray]:
+    def make_detect_image(req: DetectionRequest) -> tuple[np.ndarray, dict, dict]:
         """純粹跑模型偵測，不碰檔案 I/O。"""
+        # 取得模型
         d_model = DetectionModelFactory.get_model(req.detect_model)
         svcd = ImageDetection(model=d_model)
-        tag_results, predict_list, predict_np = svcd._make_detect_image(req.req_image)
+
+        # 開始跑預測
+        predict_np, tag_results, predict_list = svcd._make_detect_image(req.req_image)
 
         if predict_np is None or not isinstance(predict_np, np.ndarray) or predict_np.size == 0:
             raise ValueError("predict_np 不合法，無法寫入檔案")
 
-        return tag_results, predict_list, predict_np
+        return predict_np, tag_results, predict_list
 
 
     @staticmethod
@@ -75,7 +78,7 @@ class ImageDetection:
         detector_image_start = time.perf_counter()
 
         # 跑模型偵測
-        tag_results, predict_list, predict_np = ImageDetection.make_detect_image(req)
+        predict_np, tag_results, predict_list= ImageDetection.make_detect_image(req)
 
         # 儲存偵測結果圖
         detect_image = PIL.Image.fromarray(predict_np)
@@ -87,12 +90,13 @@ class ImageDetection:
             convert_jpg=True
         ))
 
+        # return data
+        detector_image_cost = round(time.perf_counter() - detector_image_start, 3)
         logger.debug(
             f"tag_results: {tag_results}, predict_list: {predict_list}, "
             f"detect_path: {detect_result.path}, detect_md5: {detect_result.md5}"
+            f"detect_cost: {detector_image_cost}"
         )
-        detector_image_cost = round(time.perf_counter() - detector_image_start, 3)
-
 
         return DetectionResult(
             tag_results=tag_results,

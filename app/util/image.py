@@ -2,6 +2,8 @@ import hashlib
 import io
 from pathlib import Path
 
+import PIL
+import requests
 from PIL import Image
 
 from const.image_const import ImageConst
@@ -85,7 +87,7 @@ def save_image_with_md5(
         :param quality: 若為 JPEG 格式時的壓縮品質 (1-100)
         :return: (最終檔案路徑, md5_hash)
     """
-    # 1. 判斷圖片格式與副檔名
+    # 判斷圖片格式與副檔名
     ext = Path(file_name).suffix.lower()
     save_kwargs = {}
 
@@ -109,13 +111,13 @@ def save_image_with_md5(
         if not ext:
             ext = f".{fmt.lower()}"
 
-    # 2. 寫入記憶體緩衝區並計算 MD5
+    # 寫入記憶體緩衝區並計算 MD5
     buffer = io.BytesIO()
     image.save(buffer, format=fmt, **save_kwargs)
     image_bytes = buffer.getvalue()
     md5_hash = hashlib.md5(image_bytes).hexdigest()
 
-    # 3. 組合檔名並寫入實體檔案
+    # 組合檔名並寫入實體檔案
     stem = Path(file_name).stem
     out_path = save_dir / f"{md5_hash}_{stem}{ext}"
     out_path.write_bytes(image_bytes)
@@ -127,3 +129,20 @@ def get_md5(content: bytes) -> str:
     """計算 MD5"""
     return hashlib.md5(content).hexdigest()
 
+
+
+def download_image(image_url: str) -> tuple[PIL.Image.Image, str]:
+    """下載網路圖片，回傳 (PIL Image 物件, 原始檔名)。"""
+    # === 原始圖片處理 ===
+    # 下載圖片 bytes
+    response = requests.get(image_url, timeout=10)
+    response.raise_for_status()
+    fetch_data = response.content
+
+    # 轉為 PIL Image 物件
+    download_img = PIL.Image.open(io.BytesIO(fetch_data))
+
+    # 取得原始檔名
+    download_img_name = image_url.split("/")[-1]
+
+    return download_img, download_img_name

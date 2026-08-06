@@ -3,8 +3,10 @@ import random
 import cv2
 import numpy as np
 
+from const.image_const import ImageConst
 from util.common import common
 
+config = common.config
 logger = common.logger
 
 
@@ -38,7 +40,7 @@ def draw_texts(result_image: np.ndarray, line: int, c1: tuple, color: list, labe
     font_scale = line * 0.25
     font_thickness = max(line - 2, 1)
 
-    # 1. 精準計算文字實際佔用的寬高與基底高度 (baseline)
+    # 精準計算文字實際佔用的寬高與基底高度 (baseline)
     t_size, baseline = cv2.getTextSize(
         display_txt,
         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
@@ -49,7 +51,7 @@ def draw_texts(result_image: np.ndarray, line: int, c1: tuple, color: list, labe
     text_w = t_size[0]
     text_h = t_size[1]
 
-    # 2. 定義文字與背景塊的基礎高度（包含 Padding 的總高度）
+    # 定義文字與背景塊的基礎高度（包含 Padding 的總高度）
     total_text_height = text_h + baseline + 6
 
     # 🎯 核心防禦邏輯：計算如果畫在框外，頂部會不會變成負數（超出圖片頂邊）
@@ -99,21 +101,22 @@ def draw_texts(result_image: np.ndarray, line: int, c1: tuple, color: list, labe
 
 
 def draw_detections(
-        output, labels: list[str], result_image: np.ndarray, score_threshold: float
-    ) -> tuple[dict, dict, np.ndarray]:
+        predict_np: np.ndarray,
+        output,
+        labels: list[str],
+    ) -> tuple[np.ndarray, dict, dict]:
     """
     根據模型輸出，在圖片上繪製偵測框與標籤。
 
     Args:
+        predict_np: 待繪製的圖片（numpy array）
         output: 模型推論結果（需含 boxes, labels, scores）
         labels: 標籤清單
-        result_image: 待繪製的圖片（numpy array）
-        score_threshold: 信心分數門檻，超過才畫框標記
 
     Returns:
+        predict_np: 繪製完成的圖片
         tag_results: 有畫框標記的標籤與其信心分數
         predict_list: 所有標籤的最高信心分數（不論有無畫框）
-        result_image: 繪製完成的圖片
     """
 
     tags = []
@@ -130,27 +133,27 @@ def draw_detections(
             predict_list[label_name] = round(float(score), 4)
 
         # 【條件】信心分數需超過預測值就標記，且同一標籤不重複標記
-        if score > score_threshold and labels[label_idx] not in tags:
+        if score > float(config.get("model","detect_score_threshold")) and labels[label_idx] not in tags:
             logger.debug(f"score: {score:.4f}, label: {labels[label_idx]}")
 
             # 產生框線顏色（BGR or RGB tuple）
             color = get_color_by_label(label_idx)
 
             # 計算適合圖片尺寸的框線粗細
-            line = make_line(result_image)
+            line = make_line(predict_np)
 
             # 將 box tensor 轉為左上角 (c1) 與右下角 (c2) 的像素座標
             c1 = (int(box[0]), int(box[1]))  # (x_min, y_min)
             c2 = (int(box[2]), int(box[3]))  # (x_max, y_max)
 
-            # 在 result_image 上繪製偵測框
-            result_image = draw_lines(c1, c2, result_image, line, color)
+            # 在 predict_np 上繪製偵測框
+            predict_np = draw_lines(c1, c2, predict_np, line, color)
 
             # 在偵測框旁繪製文字標籤
-            result_image = draw_texts(result_image, line, c1, color, labels, label_idx)
+            predict_np = draw_texts(predict_np, line, c1, color, labels, label_idx)
 
             # 記錄已處理的標籤與對應信心分數
             tags.append(label_idx)
             tag_results[labels[label_idx]] = round(float(score), 4)
 
-    return tag_results, predict_list, result_image
+    return  predict_np, tag_results, predict_list
