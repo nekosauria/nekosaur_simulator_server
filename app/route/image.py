@@ -1,13 +1,10 @@
 import json
-import time
 from pathlib import Path
 
 import PIL.Image
 
 from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
-
-
 
 from util.image import validate_image, collect_image_paths
 from const.image_const import ImageConst
@@ -16,22 +13,24 @@ from util.common import common
 from dto.image_detection import DetectionRequest
 from dto.image_processor import SaveImageRequest
 from dto.image_transform import TransformRequest
-from dto.image_upload_response import ImageUploadResponse
-from dto.image_vector_search import VectorSearchRequest
+from dto.image_embedding import EmbeddingRequest
+from dto.image_upload import ImageUploadResponse
 from dto.lock_config import LockConfig
 
 from service.image_detection import ImageDetection as ImageDetectionService
 from service.image_transform import ImageTransform as ImageTransformService
 from service.image_metadata import ImageMetadata as ImageMetadataService
 from service.image_processor import ImageProcessor as ImageProcessorService
-from service.image_vector_search import ImageVectorSearch as ImageVectorSearchService
+from service.image_embedding import ImageEmbedding as ImageEmbeddingService
 from service.sys_state import SysState as SysStateService
 
 from entity.image import Image as ImageEntity
 from entity.image_detection import ImageDetection as ImageDetectionEntity
 from entity.image_transform import ImageTransform as ImageTransformEntity
+from entity.image_embedding import ImageEmbedding as ImageEmbeddingEntity
 
 from entity.sys_state import SysState as SysStateEntity
+from util.step_timer import StepTimer
 
 
 config = common.config
@@ -48,21 +47,25 @@ lock_config = LockConfig(
 )
 
 
-@image_bp.route(config.get("api","nekosaur_server_count_prefix"), methods=['GET'])
+
+@image_bp.route(config.get("api", "nekosaur_server_count_prefix"), methods=['GET'])
 def get_count():
-    # === 取得 api 使用次數 (sqlite) ===
-    image_process_count = SysStateService.get_image_process_count(SysStateEntity(lock_class=ImageConst.IMAGE_PROCESS))
+    timer = StepTimer()
 
+    with timer.track("api_total_cost"):
+        # === 取得 api 使用次數 (sqlite) ===
+        image_process_count = SysStateService.get_image_process_count(SysStateEntity(lock_class=ImageConst.IMAGE_PROCESS))
 
-    # === 取得參考風格圖 ===
-    style_ref_image_path = Path(config.get('image', "style_ref_image_path"))
-    style_ref_image_paths = collect_image_paths(style_ref_image_path)
+        # === 取得參考風格圖 ===
+        style_ref_image_path = Path(config.get('image', "style_ref_image_path"))
+        style_ref_image_paths = collect_image_paths(style_ref_image_path)
 
 
     # === return data ===
     response_data = {
         "image_process_count": image_process_count,
-        "style_ref_image_paths": style_ref_image_paths
+        "style_ref_image_paths": style_ref_image_paths,
+        "api_cost": timer.costs["api_total_cost"]
     }
 
     # pretty print data
@@ -75,149 +78,219 @@ def get_count():
 @image_bp.route(config.get("api","nekosaur_server_upload_prefix"), methods=['POST'])
 @sqlite_table_lock(lock_config)
 def upload_image():
-    # === 格式校驗 & 取參數 ===
-    # api cost flag
-    api_start = time.perf_counter()
+    timer = StepTimer()
 
-    # 格式校驗
-    ora_file, error, status = validate_image(request.files)
-    if error:
-        return jsonify({"success": False, "error": error}), status
+#  === start api ===
+# ======================================================================================================================
+    # 全域 API 開始計時
+    with timer.track("api_total_cost"):
 
-    # 前端取得參數
-    ora_image = PIL.Image.open(ora_file)
-    detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
-    transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
-    style_ref_image = request.form.get("style_ref_image", config.get('image', "default_style_ref_img"))
-    logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
+        # === 格式校驗 & 取參數 ===
+        with timer.track("image_validate_cost"):
+            # 格式校驗
+            origin_file, error, status = validate_image(request.files)
+            if error:
+                return jsonify({"success": False, "error": error}), status
 
-    # 其他參數
-    web_base_url = config.get('server', 'web_base_url')
-    web_dns_url = config.get("server", "web_dns_url")
-    upload_prefix = config.get("api", "nekosaur_server_upload_prefix")
+            # 前端取得參數
+            origin_image = PIL.Image.open(origin_file)
+            detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
+            transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
+            style_ref_image = request.form.get("style_ref_image", config.get('image', "default_style_ref_img"))
+            logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
 
-    try:
-        # ===  database 重複驗證 ===
-        if False:
-            # === 若資料庫已有該圖案 md5, 取已經生成 ora & detect image 節省時間 ===
-
-            image_id = 0
-            ora_res = None
-            ...
+            # 其他參數
+            web_base_url = config.get('server', 'web_base_url')
+            web_dns_url = config.get("server", "web_dns_url")
+            upload_prefix = config.get("api", "nekosaur_server_upload_prefix")
 
 
-        else:
-            #  === 下載 image info ===
-            # 儲存原圖
-            ora_res = ImageProcessorService.save_image(SaveImageRequest(
-                req_image=ora_image,
-                category="user_upload_ora_path",
-                file_name=ora_file.filename,
-                sub_dir=None,
-                convert_jpg=False
-            ))
-            logger.debug(f"ora_path: {ora_res.path}, ora_md5: {ora_res.md5}")
-
-            # save image metadata
-            image_entity = ImageEntity(
-                md5_hash=ora_res.md5,
-                origin_path=ora_res.path,
-                image_source=f'{web_dns_url}{upload_prefix}',
+#  === save origin image & get similar info ===
+# ======================================================================================================================
+        #  === 原圖處理 ===
+        with timer.track("image_embedding_cost"):
+            # save origin image
+            origin_result = ImageProcessorService.save_image(
+                SaveImageRequest(
+                    req_image=origin_image,
+                    category="user_upload_origin_path",
+                    file_name=origin_file.filename,
+                    sub_dir=None,
+                    convert_jpg=False
+                )
             )
-            image_id = ImageMetadataService.save_image_metadata(image_entity)
+            logger.debug(f"origin_path: {origin_result.path}, origin_md5: {origin_result.md5}")
+
+            # save origin image metadata
+            origin_image_entity = ImageMetadataService.save_image_metadata(
+                ImageEntity(
+                    md5_hash=origin_result.md5,
+                    origin_path=origin_result.path,
+                    image_source=f'{web_dns_url}{upload_prefix}',
+                    raw_source=None,
+                    is_deleted=False
+                )
+            )
+
+            # save origin image_embedding vector
 
 
-            #  === 寫入 detect info ===
-            # 偵測 && 下載
-            detect_res = ImageDetectionService.process_image_detection(
+            #  === 相似圖處理 ===
+            # search & get similar image entity
+            similar_image_entity = origin_image_entity
+
+
+# === 寫入 origin detect info ===
+# ======================================================================================================================
+        # origin image detect
+        with timer.track("origin_detector_cost"):
+            # draw predict detect image
+            origin_detect_res = ImageDetectionService.process_image_detection(
                 DetectionRequest(
-                    req_image=ora_image,
-                    category="user_upload_detect_path",
-                    file_name=ora_file.filename,
+                    req_image=origin_image,
                     detect_model=detect_model,
                 )
             )
 
-            # save image_detection metadata
-            image_detection_entity = ImageDetectionEntity(
-                image_id=image_id,
-                md5_hash=detect_res.detect_md5,
-                detect_path=detect_res.detect_path,
-                detect_model=detect_model,
-                predict_list=detect_res.predict_list,
-                tag_results=detect_res.tag_results,
+            # save origin detect image
+            origin_detect_result = ImageProcessorService.save_image(SaveImageRequest(
+                req_image=origin_detect_res.detect_image,
+                category="user_upload_detect_path",
+                file_name=origin_file.filename,
+                sub_dir=detect_model,
+                convert_jpg=True
+            ))
+
+            # save origin image_detection metadata
+            origin_image_detection_entity = ImageMetadataService.save_image_detection_metadata(
+                ImageDetectionEntity(
+                    image_id=origin_image_entity.id,
+                    md5_hash=origin_detect_result.md5,
+                    detect_path=origin_detect_result.path,
+                    detect_model=detect_model,
+                    predict_list=origin_detect_res.predict_list,
+                    tag_results=origin_detect_res.tag_results,
+                )
             )
-            ImageMetadataService.save_image_detection_metadata(image_detection_entity)
 
 
-        #  === 寫入 vector info ===
-        vector_res = ImageVectorSearchService.process_similarity_search(
-            VectorSearchRequest(
-                image_id=0,
-                ora_path=ora_res.path
+# === 寫入 similar detect info ===
+# ======================================================================================================================
+            with timer.track("similar_detect_cost"):
+                # draw similar detect image
+                similar_detect_res = origin_detect_res
+
+                # save similar detect image
+                similar_detect_result = origin_detect_result
+
+                # save similar image_detection metadata
+                similar_image_detection_entity = origin_image_detection_entity
+
+
+#  === 寫入 origin transform info ===
+# ======================================================================================================================
+        with timer.track("origin_transform_cost"):
+            # 風格轉換圖生成
+            origin_transform_res = ImageTransformService.process_image_transform(
+                TransformRequest(
+                    req_image=origin_image,
+                    transform_model=transform_model,
+                    style_ref_image=style_ref_image
+                )
             )
-        )
 
-        # 寫 image_embedding metadata
-
-
-        #  === 寫入 ora transform info ===
-        # 風格轉換 & 下載圖
-        ora_transform_res = ImageTransformService.process_image_transform(
-            TransformRequest(
-                req_image=ora_image,
+            # 下載圖片
+            origin_transform_result = ImageProcessorService.save_image(SaveImageRequest(
+                req_image=origin_transform_res.transform_image,
                 category="user_upload_transform_path",
-                file_name=ora_file.filename,
-                transform_model=transform_model,
-                style_ref_image=style_ref_image
+                file_name=origin_file.filename,
+                sub_dir=transform_model,
+                convert_jpg=True
+            ))
+
+            # save image_transform metadata
+            origin_transform_entity = ImageMetadataService.save_image_transformation_metadata(
+                ImageTransformEntity(
+                    image_id=origin_image_entity.id,
+                    md5_hash=origin_transform_result.md5,
+                    transform_path=origin_transform_result.path,
+                    transform_model=transform_model,
+                )
             )
-        )
-
-        # 寫 image_transform metadata
-        image_transform_entity = ImageTransformEntity(
-            image_id=image_id,
-            md5_hash=ora_transform_res.transform_md5,
-            transform_path=ora_transform_res.transform_path,
-            transform_model=transform_model,
-        )
-        ImageMetadataService.save_image_transformation_metadata(image_transform_entity)
 
 
-        #  === 寫入 vector_search transform info ===
-        # 風格轉換 & 下載圖
+#  === 寫入 similar transform info ===
+# ======================================================================================================================
+            with timer.track("similar_transform_cost"):
+                # 風格轉換 & 下載圖
+                similar_transform_res = origin_transform_res
 
-        # 寫 image_transform metadata
+                # 下載圖片
+                similar_transform_result = origin_transform_result
 
-
-    except ValueError as ve:
-        logger.error(f"ValueError: {ve}", exc_info=True)
-        return jsonify({"error": str(ve)}), 400
-
-    except Exception as e:
-        logger.error(f"Exception: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+                # 寫 image_transform metadata
+                similar_transform_entity = origin_transform_entity
 
 
-    # === 組裝 response ===
+
+    # === 跳出 api_total_cost 的 with 區塊後，計時器才正式完成並寫入 api_total_cost ===
+
+
+
+# === 組裝 response ===
+# ======================================================================================================================
     response = ImageUploadResponse(
+        # --- Origin Detector ---
+        origin_image_path=f"{web_base_url}/{origin_image_entity.origin_path.as_posix()}",
+        origin_detect_path=f"{web_base_url}/{origin_image_detection_entity.detect_path.as_posix()}",
+        origin_detect_model=detect_model,
+        origin_has_cat=origin_image_detection_entity.has_cat,
+        origin_detect_is_preprocessed=origin_image_detection_entity.is_preprocessed,
+        origin_predict_list=origin_image_detection_entity.predict_list,
+        origin_tag_results=origin_image_detection_entity.tag_results,
+        origin_detect_created_at=origin_image_detection_entity.created_at,
+
+        # --- Similar Detector ---
+        similar_image_path=f"{web_base_url}/{similar_image_entity.origin_path.as_posix()}",
+        similar_detect_path=f"{web_base_url}/{similar_image_detection_entity.detect_path.as_posix()}",
+        similar_detect_model=detect_model,
+        similar_has_cat=similar_image_detection_entity.has_cat,
+        similar_is_preprocessed=similar_image_detection_entity.is_preprocessed,
+        similar_predict_list=similar_image_detection_entity.predict_list,
+        similar_tag_results=similar_image_detection_entity.tag_results,
+        similar_similar_created_at=similar_image_detection_entity.created_at,
+
+        # --- Origin Transform ---
+        origin_transform_path=f"{web_base_url}/{origin_transform_entity.transform_path.as_posix()}",
+        origin_transform_model=transform_model,
+        origin_transform_is_preprocessed=origin_transform_entity.is_preprocessed,
+        origin_transform_created_at=origin_transform_entity.created_at,
+
+        # --- Similar Transform ---
+        similar_transform_path=f"{web_base_url}/{similar_transform_entity.transform_path.as_posix()}",
+        similar_transform_model=transform_model,
+        similar_transform_is_preprocessed=similar_transform_entity.is_preprocessed,
+        similar_transform_created_at=similar_transform_entity.created_at,
+
+        # HTTP stat
         success=True,
-        detector_image=f"{web_base_url}/{detect_res.detect_path.as_posix()}",
-        predict_list=detect_res.predict_list,
-        tag_results=detect_res.tag_results,
-        detector_image_cost=detect_res.detect_cost,
-        similar_image=f"{web_base_url}/{vector_res.similar_path.as_posix()}",
-        similar_image_cost=vector_res.vector_search_cost,
-        origin_image_transform=f"{web_base_url}/{ora_transform_res.transform_path.as_posix()}",
-        origin_image_transform_cost=ora_transform_res.transform_cost,
-        similar_image_transform=f"{web_base_url}/{ora_transform_res.transform_path.as_posix()}",
-        similar_image_transform_cost=ora_transform_res.transform_cost,
-        image_process_count=SysStateService.get_image_process_count(SysStateEntity(lock_class=ImageConst.IMAGE_PROCESS)),
-        api_cost=round(time.perf_counter() - api_start, 3),
+
+        # --- Metrics & System ---
+        image_process_count=SysStateService.get_image_process_count(
+            SysStateEntity(lock_class=ImageConst.IMAGE_PROCESS),
+        ),
+        image_validate_cost=timer.costs.get("image_validate_cost"),
+        image_embedding_cost=timer.costs.get("image_embedding_cost"),
+        origin_detector_cost=timer.costs.get("origin_detector_cost"),
+        similar_detector_cost=timer.costs.get("similar_detect_cost"),
+        origin_transform_cost=timer.costs.get("origin_transform_cost"),
+        similar_transform_cost=timer.costs.get("similar_transform_cost"),
+        api_cost=timer.costs.get("api_total_cost"),
     )
 
     logger.debug("=== [/upload Response Data] ===")
-    logger.debug(json.dumps(response.to_dict(), indent=2, ensure_ascii=False))
+    logger.debug(
+        json.dumps(response.to_dict(), indent=2, ensure_ascii=False, default=str)
+    )
 
     return jsonify(response.to_dict()), 200
-
-

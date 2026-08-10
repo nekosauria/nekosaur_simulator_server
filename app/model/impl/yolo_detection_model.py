@@ -58,7 +58,7 @@ class YoloDetectionModel(BaseDetectionModel):
             if label_idx == -1:
                 continue
 
-            score = round(float(box.conf[0]), 4)
+            score = round(float(box.conf[0]), 3)
             if label_str not in best or score > best[label_str][2]:
                 best[label_str] = (box, label_idx, score)
 

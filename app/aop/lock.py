@@ -49,9 +49,9 @@ def _acquire_lock(config: LockConfig) -> SysState:
                     row = db.execute("""
                         SELECT COUNT(*) FROM sys_state
                         WHERE lock_class = ?
-                          AND is_locked = 1
+                          AND is_locked = ?
                           AND expire_at > ?
-                    """, (config.lock_class, current_now)).fetchone()
+                    """, (config.lock_class, True, current_now)).fetchone()
 
                     active_count = row[0]
 
@@ -59,7 +59,7 @@ def _acquire_lock(config: LockConfig) -> SysState:
                         lock_state = SysState(
                             lock_class=config.lock_class,
                             expire_at=expire_time,
-                            is_locked=1,
+                            is_locked=True,
                         )
 
                         cursor = db.execute("""
@@ -88,10 +88,10 @@ def _release_lock(lock_state: SysState):
             with db:
                 db.execute("""
                     UPDATE sys_state
-                    SET is_locked = 0,
+                    SET is_locked = ?,
                         finished_at = datetime('now')
                     WHERE id = ?
-                """, (lock_state.id,))
+                """, (False, lock_state.id))
         logger.debug(f"[🔓 LOCK RELEASED] 已釋放鎖 id={lock_state.id}\n")
     except sqlite3.Error as e:
         logger.error(f"[❌ RELEASE Error] {e}", exc_info=True)

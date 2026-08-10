@@ -130,11 +130,11 @@ def draw_detections(
 
         # 不論分數，全部收入 predict_list（同標籤保留最高分）
         if label_name not in predict_list or score > predict_list[label_name]:
-            predict_list[label_name] = round(float(score), 4)
+            predict_list[label_name] = round(float(score), 3)
 
         # 【條件】信心分數需超過預測值就標記，且同一標籤不重複標記
         if score > float(config.get("model","detect_score_threshold")) and labels[label_idx] not in tags:
-            logger.debug(f"score: {score:.4f}, label: {labels[label_idx]}")
+            logger.debug(f"score: {score:.3f}, label: {labels[label_idx]}")
 
             # 產生框線顏色（BGR or RGB tuple）
             color = get_color_by_label(label_idx)
@@ -154,6 +154,6 @@ def draw_detections(
 
             # 記錄已處理的標籤與對應信心分數
             tags.append(label_idx)
-            tag_results[labels[label_idx]] = round(float(score), 4)
+            tag_results[labels[label_idx]] = round(float(score), 3)
 
     return  predict_np, tag_results, predict_list

@@ -20,14 +20,14 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             self, model_path: Path,
             device: str = "cpu",
             dtype: Any = torch.float32,
-            ora_point: float = 0.7,
+            origin_point: float = 0.7,
             ref_point: float = 0.3
     ):
         self._model_path = model_path
         self.device = device
         self.dtype = dtype
 
-        self.ora_point = ora_point
+        self.origin_point = origin_point
         self.ref_point = ref_point
 
         self.guidance_scale = 3.0  # 👈 控制「貼近這張拼貼特徵」的力道，數值越高變形重組越劇烈
@@ -76,7 +76,7 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         ref_tensor = to_tensor(ref_image).to(self.device, dtype=self.dtype)
 
         # 在 0~1 的 RGB 空間做加權融合！
-        fused_tensor = (req_tensor * self.ora_point) + (ref_tensor * self.ref_point)
+        fused_tensor = (req_tensor * self.origin_point) + (ref_tensor * self.ref_point)
 
         # 融合完成後，才做 CLIP 標準預處理 (Resize + Normalize)
         clip_normalize = transforms.Compose([

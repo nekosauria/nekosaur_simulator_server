@@ -18,17 +18,6 @@ class TransformRequest:
     若為 None，代表呼叫端尚未成功取得圖片，TransformService 應拒絕處理。
     """
 
-    category: str
-    """
-    圖片來源分類，決定存檔時要落地到哪個路徑
-    （例如原圖轉換結果、相似圖轉換結果）。
-    """
-
-    file_name: str
-    """
-    存檔時使用的檔名，通常沿用原始上傳檔名或以 md5 產生的檔名。
-    """
-
     transform_model: str
     """
     使用的風格轉換模型名稱，對應 ImageConst 內 MODEL_* 常數，
@@ -47,17 +36,8 @@ class TransformResult:
     風格轉換服務的輸出結果，供 controller 組裝 API response 或寫入 DB 使用。
     """
 
-    transform_path: Path
+    transform_image: Image.Image | None
     """
-    風格轉換結果圖的實際存檔路徑。
-    """
-
-    transform_md5: str
-    """
-    風格轉換結果圖的 md5 雜湊值，用於去重與資料庫比對。
-    """
-
-    transform_cost: float
-    """
-    本次風格轉換（含模型推論與存檔）耗費的時間，單位為秒，已四捨五入至小數點後 3 位。
+        風格轉換後的處理後圖片物件（PIL.Image）。
+        若推論過程失敗或未繪製，可為 None。
     """

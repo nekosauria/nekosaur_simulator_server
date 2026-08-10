@@ -112,7 +112,7 @@ class TorchDetectionModel(BaseDetectionModel):
 
         for box, label, score in zip(out_boxes, out_labels, out_scores):
             label_str = self._labels[int(label)]
-            score_f = round(float(score), 4)
+            score_f = round(float(score), 3)
             if label_str not in best or score_f > best[label_str][2]:
                 best[label_str] = (box, int(label), score_f)
 

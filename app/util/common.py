@@ -3,6 +3,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
 from pathlib import Path
+from typing import Union
 
 
 class Common:
@@ -71,6 +72,17 @@ class Common:
     def get_project_path(self, relative_path):
         return self._get_project_path(relative_path)
 
+    @staticmethod
+    def to_path(val: Union[Path, str, None]) -> Path:
+        """
+        將傳入的數值安全轉為 pathlib.Path 物件。
+        - 若傳入已是 Path 物件，直接回傳。
+        - 若傳入非空字串，轉為 Path 物件。
+        - 若傳入 None 或空字串 ""，回傳 Path("")。
+        """
+        if isinstance(val, Path):
+            return val
+        return Path(val) if val else Path("")
 
 # 建立單例物件 (Singleton Instance)
 # ← module 載入時就初始化，之後直接 import 用

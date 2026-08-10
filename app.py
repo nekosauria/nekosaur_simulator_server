@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 from const.image_const import ImageConst
@@ -9,39 +9,57 @@ from model.factory.detection_model_factory import DetectionModelFactory
 from model.factory.transform_model_factory import TransformModelFactory
 from util.common import common
 
-app = Flask(__name__)
-CORS(app)
-
-# 註冊 blueprint (routes)
-app.register_blueprint(image_bp)
-
 config = common.config
 logger = common.logger
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    # 前後端分離 , flask 只負責傳 backend jsonx
-    return {"status": "Flask API Is Running" , "message": "Hello World"}
 
-def init_stage():
+def create_app():
+    app = Flask(__name__)
+    CORS(app)
+
+    # 註冊 blueprint (routes)
+    app.register_blueprint(image_bp)
+
+    # ======================================================================================================================
+    # === 全域例外處理 (Global Error Handlers) ===
+    # 適用於全專案所有 Blueprint、Controller、Service 與 .py 檔案拋出的 Exception
+    # ======================================================================================================================
+    @app.errorhandler(ValueError)
+    def handle_value_error(e):
+        logger.error(f"ValueError: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 400
+
+    @app.errorhandler(Exception)
+    def handle_global_exception(e):
+        logger.error(f"Unhandled Exception: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    @app.route("/", methods=["GET", "POST"])
+    def index():
+        # 前後端分離 , flask 只負責傳 backend jsonx
+        return {"status": "Flask API Is Running", "message": "Hello World"}
+
+    return app
+
+def init_stage(app_root_path):
     # 資料夾檢查並建立所需資料夾
     dirs_to_create = [
         # api (thecatapi) path
-        os.path.join(app.root_path, config.get('image', 'thecatapi_fetch_path')),
-        os.path.join(app.root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_TORCH),
-        os.path.join(app.root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_YOLO),
-        os.path.join(app.root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_STABLE_DIFFUSION),
-        os.path.join(app.root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
+        os.path.join(app_root_path, config.get('image', 'thecatapi_origin_path')),
+        os.path.join(app_root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_TORCH),
+        os.path.join(app_root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_YOLO),
+        os.path.join(app_root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_STABLE_DIFFUSION),
+        os.path.join(app_root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
 
         # user_upload path
-        os.path.join(app.root_path, config.get('image', 'user_upload_ora_path')),
-        os.path.join(app.root_path, config.get('image', 'user_upload_detect_path'), ImageConst.MODEL_TORCH),
-        os.path.join(app.root_path, config.get('image', 'user_upload_detect_path'), ImageConst.MODEL_YOLO),
-        os.path.join(app.root_path, config.get('image', 'user_upload_transform_path'), ImageConst.MODEL_STABLE_DIFFUSION),
-        os.path.join(app.root_path, config.get('image', 'user_upload_transform_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
+        os.path.join(app_root_path, config.get('image', 'user_upload_origin_path')),
+        os.path.join(app_root_path, config.get('image', 'user_upload_detect_path'), ImageConst.MODEL_TORCH),
+        os.path.join(app_root_path, config.get('image', 'user_upload_detect_path'), ImageConst.MODEL_YOLO),
+        os.path.join(app_root_path, config.get('image', 'user_upload_transform_path'), ImageConst.MODEL_STABLE_DIFFUSION),
+        os.path.join(app_root_path, config.get('image', 'user_upload_transform_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
 
         # log path
-        os.path.join(app.root_path, config.get('global', 'log_path'))
+        os.path.join(app_root_path, config.get('global', 'log_path'))
     ]
 
     for folder_path in dirs_to_create:
@@ -49,15 +67,17 @@ def init_stage():
         logger.info(f"Directory checked/created: {folder_path}")
 
 
-def model_stage():
+def model_stage(app_root_path):
     # 在 App 啟動時就把模型餵進記憶體
-    logger.info(f"app.root_path: {app.root_path}")
-    DetectionModelFactory.init_models(app.root_path)
-    TransformModelFactory.init_models(app.root_path)
+    logger.info(f"app.root_path: {app_root_path}")
+    DetectionModelFactory.init_models(app_root_path)
+    TransformModelFactory.init_models(app_root_path)
 
 
 if __name__ == '__main__':
-    init_stage()
-    model_stage()
+    app = create_app()
+
+    init_stage(app.root_path)
+    model_stage(app.root_path)
 
     app.run(debug=False, host=config.get('server', 'web_base_host'), port=config.get('server', 'web_base_port'))

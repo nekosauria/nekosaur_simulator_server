@@ -7,13 +7,24 @@ class ImageConst:
     # 💡 新增模型名稱常數
     # detect
     # "torchvision.models.detection.maskrcnn_resnet50_fpn"
-    MODEL_TORCH = "torch"
+    MODEL_TORCH = "maskrcnn_model"
     # "ultralytics.YOLO"
-    MODEL_YOLO = "yolo"
+    MODEL_YOLO = "yolo11n"
 
     # transform
-    MODEL_STABLE_DIFFUSION = "stable_diffusion_transform"
-    MODEL_SD_IMAGE_VARIATIONS = "sd_image_variations_transform"
+    MODEL_STABLE_DIFFUSION = "stable-diffusion-v1-5"
+    MODEL_SD_IMAGE_VARIATIONS = "sd-image-variations-diffusers"
+
+    # 💡 模型名稱 Array / List
+    DETECT_MODELS = [
+        MODEL_TORCH,
+        MODEL_YOLO,
+    ]
+
+    TRANSFORM_MODELS = [
+        MODEL_STABLE_DIFFUSION,
+        MODEL_SD_IMAGE_VARIATIONS,
+    ]
 
     # 用於物件偵測的標籤
     TORCH_LABELS = [

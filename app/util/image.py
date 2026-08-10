@@ -71,21 +71,32 @@ def resize_with_padding(image, target_size=(512, 512)):
     return new_image
 
 
+import hashlib
+import io
+from pathlib import Path
+from PIL import Image
+
+
+def get_md5(content: bytes) -> str:
+    """計算 MD5"""
+    return hashlib.md5(content).hexdigest()
+
+
 def save_image_with_md5(
-    image: Image.Image,
-    save_dir: Path,
-    file_name: str = "result",
-    convert_jpg: bool = True,
-    quality: int = 90,
+        image: Image.Image,
+        save_dir: Path,
+        file_name: str = "result",
+        convert_jpg: bool = True,
+        quality: int = 90,
 ) -> tuple[Path, str]:
     """將 PIL 圖片物件儲存至指定目錄，自動加上 md5 並回傳 (路徑, md5_hash)。
 
-        :param image: PIL Image 物件
-        :param save_dir: 儲存目錄
-        :param file_name: 檔名 (可帶原副檔名)
-        :param convert_jpg: 是否強制轉換為 .jpg 格式 (預設為 True)
-        :param quality: 若為 JPEG 格式時的壓縮品質 (1-100)
-        :return: (最終檔案路徑, md5_hash)
+    :param image: PIL Image 物件
+    :param save_dir: 儲存目錄
+    :param file_name: 檔名 (可帶原副檔名)
+    :param convert_jpg: 是否強制轉換為 .jpg 格式 (預設為 True)
+    :param quality: 若為 JPEG 格式時的壓縮品質 (1-100)
+    :return: (最終檔案路徑, md5_hash)
     """
     # 判斷圖片格式與副檔名
     ext = Path(file_name).suffix.lower()
@@ -115,7 +126,9 @@ def save_image_with_md5(
     buffer = io.BytesIO()
     image.save(buffer, format=fmt, **save_kwargs)
     image_bytes = buffer.getvalue()
-    md5_hash = hashlib.md5(image_bytes).hexdigest()
+
+    # 引用 get_md5 計算 Hash
+    md5_hash = get_md5(image_bytes)
 
     # 組合檔名並寫入實體檔案
     stem = Path(file_name).stem
@@ -123,12 +136,6 @@ def save_image_with_md5(
     out_path.write_bytes(image_bytes)
 
     return out_path, md5_hash
-
-
-def get_md5(content: bytes) -> str:
-    """計算 MD5"""
-    return hashlib.md5(content).hexdigest()
-
 
 
 def download_image(image_url: str) -> tuple[PIL.Image.Image, str]:
