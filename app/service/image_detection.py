@@ -37,6 +37,9 @@ class ImageDetection:
         labels = self._model.labels
         logger.debug(f"labels: {labels}")
 
+        # 確保進模型推論的圖片是 3 channel RGB（避免 RGBA/灰階圖片造成 tensor 維度不符）
+        req_image = req_image.convert("RGB")
+
         req_np = np.array(req_image.copy())  # 複製原圖作為繪圖畫布（RGB numpy array）
 
         # -----------------------------------------------------------

@@ -17,9 +17,9 @@ class ImageTransform:
         self._model = model
 
 
-    def generate(self, init_image_path: Path, style_ref_image: Path) -> Image.Image:
+    def generate(self, req_image: Image.Image, style_ref_image: Image.Image) -> Image.Image:
 
-        transform_image_path = self._model.generate(init_image_path, style_ref_image)
+        transform_image_path = self._model.generate(req_image, style_ref_image)
 
         return transform_image_path
 
@@ -31,8 +31,12 @@ class ImageTransform:
         t_model = TransformModelFactory.get_model(req.transform_model)
         svct = ImageTransform(model=t_model)
 
+        # 確保進模型推論的圖片是 3 channel RGB
+        req_image = req.req_image.convert("RGB")
+        style_ref_image = Image.open(Path(req.style_ref_image)).convert("RGB")
+
         # 開始生成圖片
-        transform_image = svct.generate(req.req_image , Path(req.style_ref_image))
+        transform_image = svct.generate(req_image , style_ref_image )
 
         return TransformResult(
             transform_image=transform_image

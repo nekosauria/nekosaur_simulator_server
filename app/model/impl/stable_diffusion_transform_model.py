@@ -108,10 +108,10 @@ class StableDiffusionTransformModel(BaseTransformModel):
         logger.info("=== 核心模型與權重已成功載入 GPU，準備就緒！ ===")
 
     @override
-    def generate(self, req_image: Image.Image, style_ref_image: Path) -> Image.Image:
+    def generate(self, req_image: Image.Image, style_ref_image: Image.Image) -> Image.Image:
         # load style_ref_image
         req_image = resize_with_padding(req_image, target_size=(256, 256))
-        ref_image = resize_with_padding(Image.open(style_ref_image), target_size=(256, 256))
+        ref_image = resize_with_padding(style_ref_image, target_size=(256, 256))
 
         # 清理 PyTorch 顯存快取（防止上一張圖殘留顯存問題導致解碼出錯）
         clear_device_cache(self.device)

@@ -65,10 +65,10 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             break
 
     @override
-    def generate(self, req_image: Image.Image, style_ref_image: Path) -> Image.Image:
+    def generate(self, req_image: Image.Image, style_ref_image: Image.Image) -> Image.Image:
         # 讀取並統一基本尺寸
         req_image = resize_with_padding(req_image, target_size=(256, 256))
-        ref_image = resize_with_padding(Image.open(style_ref_image), target_size=(256, 256))
+        ref_image = resize_with_padding(style_ref_image, target_size=(256, 256))
 
         # 轉為 0 ~ 1 區間的 Tensor
         to_tensor = transforms.ToTensor()

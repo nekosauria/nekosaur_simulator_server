@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass
@@ -37,7 +38,7 @@ class ImageUploadResponse:
     """原圖各標籤的信心分數彙總。"""
 
     origin_detect_created_at: str
-    """原圖偵測紀錄的建立時間（ISO 格式字串）。"""
+    """原圖偵測紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
 
     # --- Similar Detector 偵測結果 ---
     similar_image_path: str
@@ -62,7 +63,7 @@ class ImageUploadResponse:
     """相似圖片各標籤的信心分數彙總。"""
 
     similar_similar_created_at: str
-    """相似圖片紀錄的建立時間（ISO 格式字串）。"""
+    """相似圖片紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
 
     # --- Origin Transform 風格轉換結果 ---
     origin_transform_path: str
@@ -75,7 +76,7 @@ class ImageUploadResponse:
     """原圖轉換結果是否為預處理快取。"""
 
     origin_transform_created_at: str
-    """原圖轉換紀錄的建立時間（ISO 格式字串）。"""
+    """原圖轉換紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
 
     # --- Similar Transform 風格轉換結果 ---
     similar_transform_path: str
@@ -88,7 +89,7 @@ class ImageUploadResponse:
     """相似圖轉換結果是否為預處理快取。"""
 
     similar_transform_created_at: str
-    """相似圖轉換紀錄的建立時間（ISO 格式字串）。"""
+    """相似圖轉換紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
 
     # --- Metrics & System ---
     image_process_count: int
@@ -114,6 +115,36 @@ class ImageUploadResponse:
 
     api_cost: float
     """本次 API 請求總耗費時間（秒）。"""
+
+    # 需要統一轉換成字串的建立時間欄位名稱
+    _DATETIME_FIELDS = (
+        "origin_detect_created_at",
+        "similar_similar_created_at",
+        "origin_transform_created_at",
+        "similar_transform_created_at",
+    )
+
+    def __post_init__(self):
+        """
+        統一將四個 created_at 欄位正規化為 "%Y-%m-%d %H:%M:%S" 字串。
+
+        上游 entity 的 created_at 屬性可能是 datetime 物件（DAO 讀出來未轉換）
+        也可能已經是字串，這裡統一收斂成同一種格式，避免不同路徑序列化結果不一致，
+        導致 Flask jsonify() 對 naive datetime 物件自動轉成 RFC 1123 格式
+        （例如 "Tue, 11 Aug 2026 11:42:28 GMT"）造成前端解析錯誤。
+
+        注意：這裡不做時區轉換，純粹格式化，因為系統資料庫存的本來就是伺服器本地時間
+        （DATETIME + CURRENT_TIMESTAMP，未設定 UTC time_zone）。
+        """
+        for field_name in self._DATETIME_FIELDS:
+            value = getattr(self, field_name)
+            if isinstance(value, datetime):
+                setattr(self, field_name, value.strftime("%Y-%m-%d %H:%M:%S"))
+            elif value is not None and not isinstance(value, str):
+                # 非預期型別，明確拋錯而非靜默吞掉，符合「拒絕預設值、寧可失敗要吵」的原則
+                raise TypeError(
+                    f"{field_name} 預期為 datetime 或 str，實際收到 {type(value).__name__}: {value!r}"
+                )
 
     def to_dict(self) -> dict:
         """將 response 物件序列化為 dict，供 Flask jsonify() 使用。"""
