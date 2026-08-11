@@ -19,6 +19,17 @@ class ImageEmbedding:
     vector_512: Optional[List[float]] = None
     """512 維度的浮點數特徵向量 (VECTOR(512))，用於相似度矩陣搜尋"""
 
+    distance: Optional[float] = None
+    """Vector Search 的 Cosine Distance (0.0 ~ 2.0)
+    數值越小代表向量越相似 (Similarity = 1 - Distance)
+
+    常見距離門檻判讀：
+    - 0.00 ~ 0.15: 非常相似 (幾乎同圖/輕微變形)
+    - 0.15 ~ 0.25: 相當相似 (同主題/同類型物件)
+    - 0.25 ~ 0.30: 邊緣相關 (僅背景或構圖部分相似)
+    - > 0.30     : 差異極大 (視覺上不太像)
+    """
+
     created_at: Optional[datetime] = None
     """紀錄建立時間 (DATETIME)"""
 

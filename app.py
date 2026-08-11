@@ -7,6 +7,7 @@ from const.image_const import ImageConst
 from route.image import image_bp
 from model.factory.detection_model_factory import DetectionModelFactory
 from model.factory.transform_model_factory import TransformModelFactory
+from model.factory.embedding_model_factory import EmbeddingModelFactory
 from util.common import common
 
 config = common.config
@@ -48,8 +49,8 @@ def init_stage(app_root_path):
         os.path.join(app_root_path, config.get('image', 'thecatapi_origin_path')),
         os.path.join(app_root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_TORCH),
         os.path.join(app_root_path, config.get('image', 'thecatapi_detect_path'), ImageConst.MODEL_YOLO),
-        os.path.join(app_root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_STABLE_DIFFUSION),
-        os.path.join(app_root_path, config.get('image', 'thecatapi_transform_img_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
+        os.path.join(app_root_path, config.get('image', 'thecatapi_transform_path'), ImageConst.MODEL_STABLE_DIFFUSION),
+        os.path.join(app_root_path, config.get('image', 'thecatapi_transform_path'), ImageConst.MODEL_SD_IMAGE_VARIATIONS),
 
         # user_upload path
         os.path.join(app_root_path, config.get('image', 'user_upload_origin_path')),
@@ -72,6 +73,7 @@ def model_stage(app_root_path):
     logger.info(f"app.root_path: {app_root_path}")
     DetectionModelFactory.init_models(app_root_path)
     TransformModelFactory.init_models(app_root_path)
+    EmbeddingModelFactory.init_models(app_root_path)
 
 
 if __name__ == '__main__':

@@ -15,6 +15,9 @@ class ImageConst:
     MODEL_STABLE_DIFFUSION = "stable-diffusion-v1-5"
     MODEL_SD_IMAGE_VARIATIONS = "sd-image-variations-diffusers"
 
+    # embedding
+    MODEL_CLIP_VIT_B_32 = "clip-ViT-B-32"
+
     # 💡 模型名稱 Array / List
     DETECT_MODELS = [
         MODEL_TORCH,
@@ -24,6 +27,10 @@ class ImageConst:
     TRANSFORM_MODELS = [
         MODEL_STABLE_DIFFUSION,
         MODEL_SD_IMAGE_VARIATIONS,
+    ]
+
+    EMBEDDING_MODELS = [
+        MODEL_CLIP_VIT_B_32
     ]
 
     # 用於物件偵測的標籤

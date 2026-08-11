@@ -1,14 +1,13 @@
 from pathlib import Path
-from time import perf_counter
 from typing import Dict, override
 
-from const.image_const import ImageConst
 from model.interface.base_detection_model import BaseDetectionModel
 from model.impl.torch_detection_model import TorchDetectionModel
 from model.impl.yolo_detection_model import YoloDetectionModel
 from model.interface.base_model_factory import BaseModelFactory
 from util.common import common
 from util.device import get_gpu_device
+from util.step_timer import StepTimer
 
 logger = common.logger
 
@@ -26,33 +25,33 @@ class DetectionModelFactory(BaseModelFactory[BaseDetectionModel]):
         # 自動辨識最佳硬體
         gpu_device = get_gpu_device()
 
+        timer = StepTimer()
+
 
 ########################################################################################################################
         # 預先載入 Torch 模型
-        torch_start = perf_counter()
-        torch_path = Path(f'{config.get('model', "maskrcnn_model")}')
-        torch_model = TorchDetectionModel(
-            model_path=torch_path,
-            device=gpu_device
-        )
-        torch_model.load()
-        cls._instances[torch_model.name] = torch_model
-        torch_cost = round(perf_counter() - torch_start, 3)
-        logger.info(f"=== torch 模型載入完畢，耗時 {torch_cost}s ===")
+        with timer.track("torch_load_cost"):
+            torch_path = Path(f'{config.get('model', "maskrcnn_model")}')
+            torch_model = TorchDetectionModel(
+                model_path=torch_path,
+                device=gpu_device
+            )
+            torch_model.load()
+            cls._instances[torch_model.name] = torch_model
+        logger.info(f"=== torch 模型載入完畢，耗時 {timer.costs['torch_load_cost']}s ===")
 
 
 ########################################################################################################################
         # 預先載入 YOLO 模型
-        yolo_start = perf_counter()
-        yolo_path = Path(f'{config.get('model', "yolo11n")}')
-        yolo_model = YoloDetectionModel(
-            model_path=yolo_path,
-            device=gpu_device
-        )
-        yolo_model.load()
-        cls._instances[yolo_model.name] = yolo_model
-        yolo_cost = round(perf_counter() - yolo_start, 3)
-        logger.info(f"=== yolo 模型載入完畢，耗時 {yolo_cost}s ===")
+        with timer.track("yolo_load_cost"):
+            yolo_path = Path(f'{config.get('model', "yolo11n")}')
+            yolo_model = YoloDetectionModel(
+                model_path=yolo_path,
+                device=gpu_device
+            )
+            yolo_model.load()
+            cls._instances[yolo_model.name] = yolo_model
+        logger.info(f"=== yolo 模型載入完畢，耗時 {timer.costs['yolo_load_cost']}s ===")
 
 
         logger.info("=== 所有 Detection 模型載入完畢，準備就緒 ===")

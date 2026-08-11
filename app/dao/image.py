@@ -50,3 +50,37 @@ class Image:
                     row["raw_source"] = json.loads(row["raw_source"])
 
                 return ImageEntity(**row)
+
+    @staticmethod
+    def get_by_id(image_id: int) -> ImageEntity | None:
+        """依 image.id 取得圖片 Entity；不存在時回傳 None。"""
+        with mariadb_connection() as conn:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        id,
+                        md5_hash,
+                        origin_path,
+                        image_source,
+                        raw_source,
+                        is_deleted,
+                        deleted_at,
+                        last_checked_at,
+                        created_at,
+                        updated_at
+                    FROM image
+                    WHERE id = %s
+                    """,
+                    (image_id,),
+                )
+
+                row = cursor.fetchone()
+
+                if row is None:
+                    return None
+
+                if row["raw_source"] and isinstance(row["raw_source"], str):
+                    row["raw_source"] = json.loads(row["raw_source"])
+
+                return ImageEntity(**row)

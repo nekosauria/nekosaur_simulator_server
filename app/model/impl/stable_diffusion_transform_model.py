@@ -2,7 +2,6 @@ from typing import override, Any
 
 import torch
 from diffusers import StableDiffusionImg2ImgPipeline
-from diffusers.utils import load_image
 from PIL import Image
 
 from const.image_const import ImageConst

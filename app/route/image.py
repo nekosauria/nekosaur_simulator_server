@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-import PIL.Image
+from PIL import Image
 
 from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
@@ -19,7 +19,7 @@ from dto.lock_config import LockConfig
 
 from service.image_detection import ImageDetection as ImageDetectionService
 from service.image_transform import ImageTransform as ImageTransformService
-from service.image_metadata import ImageMetadata as ImageMetadataService
+from service.image import Image as ImageService
 from service.image_processor import ImageProcessor as ImageProcessorService
 from service.image_embedding import ImageEmbedding as ImageEmbeddingService
 from service.sys_state import SysState as SysStateService
@@ -93,7 +93,7 @@ def upload_image():
                 return jsonify({"success": False, "error": error}), status
 
             # 前端取得參數
-            origin_image = PIL.Image.open(origin_file)
+            origin_image = Image.open(origin_file)
             detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
             transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
             style_ref_image = request.form.get("style_ref_image", config.get('image', "default_style_ref_img"))
@@ -103,6 +103,7 @@ def upload_image():
             web_base_url = config.get('server', 'web_base_url')
             web_dns_url = config.get("server", "web_dns_url")
             upload_prefix = config.get("api", "nekosaur_server_upload_prefix")
+            embedding_model = ImageConst.MODEL_CLIP_VIT_B_32
 
 
 #  === save origin image & get similar info ===
@@ -122,7 +123,7 @@ def upload_image():
             logger.debug(f"origin_path: {origin_result.path}, origin_md5: {origin_result.md5}")
 
             # save origin image metadata
-            origin_image_entity = ImageMetadataService.save_image_metadata(
+            origin_image_entity = ImageService.save_image_metadata(
                 ImageEntity(
                     md5_hash=origin_result.md5,
                     origin_path=origin_result.path,
@@ -132,12 +133,34 @@ def upload_image():
                 )
             )
 
-            # save origin image_embedding vector
+            # get origin image_embedding vector
+            origin_embedding_res = ImageEmbeddingService.process_image_embedding(
+                EmbeddingRequest(
+                    req_image=origin_image,
+                    embedding_model=embedding_model,
+                )
+            )
 
+            # save origin image_embedding metadata
+            origin_image_embedding_entity = ImageEmbeddingService.save_image_embedding_metadata(
+                ImageEmbeddingEntity(
+                    image_id=origin_image_entity.id,
+                    model_name=embedding_model,
+                    vector_512=origin_embedding_res.image_embedding_vector
+                )
+            )
 
             #  === 相似圖處理 ===
-            # search & get similar image entity
-            similar_image_entity = origin_image_entity
+            # search similar embedding_image entity
+            similar_image_embedding_entity = ImageEmbeddingService.search_similar_images_embedding(
+                origin_image_embedding_entity
+            )
+
+            # similar image entity
+            similar_image_entity = ImageService.get_by_id(
+                similar_image_embedding_entity.image_id
+            )
+            similar_image = Image.open(Path(similar_image_entity.origin_path))
 
 
 # === 寫入 origin detect info ===
@@ -162,7 +185,7 @@ def upload_image():
             ))
 
             # save origin image_detection metadata
-            origin_image_detection_entity = ImageMetadataService.save_image_detection_metadata(
+            origin_image_detection_entity = ImageDetectionService.save_image_detection_metadata(
                 ImageDetectionEntity(
                     image_id=origin_image_entity.id,
                     md5_hash=origin_detect_result.md5,
@@ -178,13 +201,34 @@ def upload_image():
 # ======================================================================================================================
             with timer.track("similar_detect_cost"):
                 # draw similar detect image
-                similar_detect_res = origin_detect_res
+                similar_detect_res = ImageDetectionService.process_image_detection(
+                DetectionRequest(
+                    req_image=similar_image,
+                    detect_model=detect_model,
+                )
+            )
 
                 # save similar detect image
-                similar_detect_result = origin_detect_result
+                similar_detect_result = ImageProcessorService.save_image(SaveImageRequest(
+                    req_image=similar_detect_res.detect_image,
+                    category="thecatapi_detect_path",
+                    file_name=origin_file.filename,
+                    sub_dir=detect_model,
+                    convert_jpg=True
+                ))
 
                 # save similar image_detection metadata
-                similar_image_detection_entity = origin_image_detection_entity
+                similar_image_detection_entity = ImageDetectionService.save_image_detection_metadata(
+                    ImageDetectionEntity(
+                        image_id=similar_image_entity.id,
+                        md5_hash=similar_detect_result.md5,
+                        detect_path=similar_detect_result.path,
+                        detect_model=detect_model,
+                        predict_list=similar_detect_res.predict_list,
+                        tag_results=similar_detect_res.tag_results,
+                    )
+                )
+
 
 
 #  === 寫入 origin transform info ===
@@ -209,7 +253,7 @@ def upload_image():
             ))
 
             # save image_transform metadata
-            origin_transform_entity = ImageMetadataService.save_image_transformation_metadata(
+            origin_transform_entity = ImageTransformService.save_image_transformation_metadata(
                 ImageTransformEntity(
                     image_id=origin_image_entity.id,
                     md5_hash=origin_transform_result.md5,
@@ -223,13 +267,32 @@ def upload_image():
 # ======================================================================================================================
             with timer.track("similar_transform_cost"):
                 # 風格轉換 & 下載圖
-                similar_transform_res = origin_transform_res
+                similar_transform_res = ImageTransformService.process_image_transform(
+                    TransformRequest(
+                        req_image=similar_image,
+                        transform_model=transform_model,
+                        style_ref_image=style_ref_image
+                    )
+                )
 
                 # 下載圖片
-                similar_transform_result = origin_transform_result
+                similar_transform_result = ImageProcessorService.save_image(SaveImageRequest(
+                    req_image=similar_transform_res.transform_image,
+                    category="thecatapi_transform_path",
+                    file_name=similar_image.filename,
+                    sub_dir=transform_model,
+                    convert_jpg=True
+                ))
 
                 # 寫 image_transform metadata
-                similar_transform_entity = origin_transform_entity
+                similar_transform_entity = ImageTransformService.save_image_transformation_metadata(
+                    ImageTransformEntity(
+                        image_id=similar_image_entity.id,
+                        md5_hash=similar_transform_result.md5,
+                        transform_path=similar_transform_result.path,
+                        transform_model=transform_model,
+                    )
+                )
 
 
 
