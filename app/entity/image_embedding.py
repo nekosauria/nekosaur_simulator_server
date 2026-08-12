@@ -10,10 +10,10 @@ class ImageEmbedding:
     id: Optional[int] = None
     """向量紀錄主鍵 ID (BIGINT UNSIGNED)"""
 
-    image_id: int = 0
+    image_id: int = None
     """對應的主圖 ID (BIGINT UNSIGNED)，關聯 image.id"""
 
-    model_name: str = ""
+    model_name: str = None
     """產生向量的模型名稱 (VARCHAR(64))，例如 "clip-vit-b32"；與 image_id 組成唯一約束"""
 
     vector_512: Optional[List[float]] = None

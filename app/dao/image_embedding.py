@@ -97,3 +97,31 @@ class ImageEmbedding:
                     ImageEmbeddingEntity(**row)
                     for row in rows
                 ]
+
+    @staticmethod
+    def get_image_embedding_by_image_id(image_id: int, embedding_model: str) -> ImageEmbeddingEntity | None:
+        """依 image_id + model_name 查詢單筆 image_embedding 記錄，查無資料回傳 None"""
+        with mariadb_connection() as conn:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+
+                cursor.execute(
+                    """
+                    SELECT
+                        id, image_id, model_name,
+                        VEC_ToText(vector_512) AS vector_512,
+                        created_at, updated_at
+                    FROM image_embedding
+                    WHERE image_id = %s
+                      AND model_name = %s
+                    """,
+                    (image_id, embedding_model),
+                )
+                row = cursor.fetchone()
+
+                if row is None:
+                    return None
+
+                if row["vector_512"] and isinstance(row["vector_512"], str):
+                    row["vector_512"] = json.loads(row["vector_512"])
+
+                return ImageEmbeddingEntity(**row)

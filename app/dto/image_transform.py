@@ -24,7 +24,7 @@ class TransformRequest:
     例如 stable_diffusion、sd_image_variations，TransformModelFactory 依此取得常駐模型實例。
     """
 
-    style_ref_image: str
+    style_ref_path: str
     """
     風格轉換的參考圖路徑，模型會依此圖的風格對 req_image 進行轉換。
     """

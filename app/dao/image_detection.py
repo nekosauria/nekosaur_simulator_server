@@ -66,3 +66,33 @@ class ImageDetection:
                     row["tag_results"] = json.loads(row["tag_results"])
 
                 return ImageDetectionEntity(**row)
+
+    @staticmethod
+    def get_image_detection_by_image_id(image_id: int, detect_model: str) -> ImageDetectionEntity | None:
+        """依 image_id + detect_model 查詢單筆 image_detection 記錄，查無資料回傳 None"""
+        with mariadb_connection() as conn:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+
+                cursor.execute(
+                    """
+                    SELECT
+                        id, image_id, md5_hash, detect_path, detect_model,
+                        has_cat, is_preprocessed, predict_list, tag_results,
+                        created_at, updated_at
+                    FROM image_detection
+                    WHERE image_id = %s
+                      AND detect_model = %s
+                    """,
+                    (image_id, detect_model),
+                )
+                row = cursor.fetchone()
+
+                if row is None:
+                    return None
+
+                if row["predict_list"] and isinstance(row["predict_list"], str):
+                    row["predict_list"] = json.loads(row["predict_list"])
+                if row["tag_results"] and isinstance(row["tag_results"], str):
+                    row["tag_results"] = json.loads(row["tag_results"])
+
+                return ImageDetectionEntity(**row)

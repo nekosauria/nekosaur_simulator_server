@@ -45,6 +45,14 @@ class DetectionResult:
     完整的模型預測結果列表，包含各標籤對應的信心分數細節。
     """
 
+    has_cat: bool
+    """
+    本次偵測結果中是否包含「貓」這個類別。
+    由 tag_results 依信心分數門檻判斷後得出，
+    供上層流程判斷是否為合法上傳圖片（無貓則視為 422，不繼續往下跑相似度搜尋與風格轉換）。
+    """
+
+
 
 @dataclass
 class ModelPrediction:

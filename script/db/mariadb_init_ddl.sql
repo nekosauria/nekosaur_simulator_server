@@ -18,7 +18,7 @@ CREATE TABLE image (
     md5_hash         CHAR(32) NOT NULL,
     origin_path      VARCHAR(512) NOT NULL,
     image_source     VARCHAR(512) NULL,
-    raw_source       JSON NULL COMMENT '第三方 API 回傳的原始 JSON 備查 or 使用者上傳圖片內容 (JSON)',
+    raw_source       JSON NULL COMMENT '第三方 API 回傳的原始 JSON 備查 or 使用者上傳圖片檔名 (JSON)',
     is_deleted       BOOLEAN DEFAULT FALSE NOT NULL,
     deleted_at       DATETIME NULL,
     last_checked_at  DATETIME NULL COMMENT 'health daemon 上次檢查（存在性/有無貓，連同關聯 detection/transform）的時間',

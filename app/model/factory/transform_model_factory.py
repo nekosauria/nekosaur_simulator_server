@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Dict, override
 
@@ -6,7 +7,7 @@ from model.interface.base_transform_model import BaseTransformModel
 from model.impl.stable_diffusion_transform_model import StableDiffusionTransformModel
 from model.impl.sd_image_variations_transform_model import SDImageVariationsTransformModel
 from util.common import common
-from util.device import get_gpu_device, get_gpu_dtype
+from util.device import get_gpu_device, get_gpu_dtype, log_device_memory
 from util.step_timer import StepTimer
 
 logger = common.logger
@@ -25,7 +26,12 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
 
         timer = StepTimer()
 
-
+        log_device_memory(
+            gpu_device,
+            component="transform_factory",
+            stage="before_all_models",
+            log_level=logging.INFO,
+        )
 ########################################################################################################################
         # 預先載入 StableDiffusionTransformModel 模型
         with timer.track("stable_diffusion_transform_load_cost"):
@@ -39,6 +45,12 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
             cls._instances[sd_model.name] = sd_model
         logger.info(f"=== stable_diffusion_transform 模型載入完畢，耗時 {timer.costs['stable_diffusion_transform_load_cost']}s ===")
 
+        log_device_memory(
+            gpu_device,
+            component=sd_model.name,
+            stage="after_load",
+            log_level=logging.INFO,
+        )
 
 ########################################################################################################################
         # 預先載入 SDImageVariationsTransformModel 模型
@@ -52,5 +64,17 @@ class TransformModelFactory(BaseModelFactory[BaseTransformModel]):
             cls._instances[sdv_model.name] = sdv_model
         logger.info(f"=== sd_image_variations_transform 模型載入完畢，耗時 {timer.costs['sd_image_variations_transform_load_cost']}s ===")
 
+        log_device_memory(
+            gpu_device,
+            component=sdv_model.name,
+            stage="after_load",
+            log_level=logging.INFO,
+        )
 
         logger.info("=== 所有 Transform 模型載入完畢，準備就緒 ===")
+        log_device_memory(
+            gpu_device,
+            component="transform_factory",
+            stage="after_all_models",
+            log_level=logging.INFO,
+        )

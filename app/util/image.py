@@ -49,32 +49,64 @@ def validate_image(request_files):
 
     return file, None, None
 
-def resize_with_padding(image, target_size=(512, 512)):
-    if image.mode != "RGB":
-        image = image.convert("RGB")
 
-    # 方案 1: 嘗試新版 Pillow (10.0+) 的 Resampling 屬性
-    resample_filter = getattr(Image, 'Resampling', Image)
+def resize_with_padding(image: Image.Image, target_size=(512, 512)) -> Image.Image:
+    """將圖片按比例縮放並補黑邊 (Padding) 至指定尺寸"""
+    # 複製一份避免修改到原始圖像，並轉為 RGB
+    img = image.copy().convert("RGB")
 
-    # 方案 2: 嘗試抓取 LANCZOS，如果都抓不到，直接用數值 1 (LANCZOS 的底層常數)
-    # 在 Pillow 中，LANCZOS、ANTIALIAS、1 其實指的都是同一個濾鏡
-    final_filter = getattr(resample_filter, 'LANCZOS', 1)
+    # 取得相容性最好的 LANCZOS 濾鏡 (優先用 Image.Resampling.LANCZOS，其次 Image.LANCZOS)
+    resample_filter = getattr(Image, "Resampling", Image).LANCZOS
 
-    # 執行縮放
-    image.thumbnail(target_size, final_filter)
+    # 按比例等比縮放
+    img.thumbnail(target_size, resample_filter)
 
-    # 建立底圖
+    # 建立目標尺寸的黑色底圖
     new_image = Image.new("RGB", target_size, (0, 0, 0))
-    # 將縮放後的圖貼在正中間
-    new_image.paste(image, ((target_size[0] - image.size[0]) // 2,
-                            (target_size[1] - image.size[1]) // 2))
+
+    # 置中貼上
+    paste_x = (target_size[0] - img.size[0]) // 2
+    paste_y = (target_size[1] - img.size[1]) // 2
+    new_image.paste(img, (paste_x, paste_y))
+
     return new_image
 
 
-import hashlib
-import io
-from pathlib import Path
-from PIL import Image
+def _prepare_image_bytes(
+        image: Image.Image,
+        file_name: str,
+        convert_jpg: bool,
+        quality: int,
+) -> tuple[bytes, str]:
+    """依命名慣例決定輸出格式/副檔名，並將圖片序列化為 bytes。
+
+    抽出此函式是為了讓 save_image_with_md5 (寫檔) 與
+    compute_image_md5 (只算 md5，不寫檔) 共用同一份格式判斷邏輯。
+
+    :param convert_jpg: True 時強制轉 JPEG 並套用 quality 壓縮 (有損)；
+                         False 時保留原格式、不做任何壓縮 (原圖存檔用)。
+    :return: (image_bytes, ext)
+    """
+    ext = Path(file_name).suffix.lower()
+    save_kwargs = {}
+
+    if convert_jpg:
+        fmt = "JPEG"
+        ext = ".jpg"
+        save_kwargs["quality"] = quality
+        if image.mode in ("RGBA", "P", "LA"):
+            image = image.convert("RGB")
+    else:
+        # 不轉檔情境：保留原格式，不做 quality 壓縮 (避免非必要地改變原圖 bytes / md5)
+        fmt = image.format
+        if not fmt:
+            fmt = "JPEG" if ext in (".jpg", ".jpeg") else "PNG"
+        if not ext:
+            ext = f".{fmt.lower()}"
+
+    buffer = io.BytesIO()
+    image.save(buffer, format=fmt, **save_kwargs)
+    return buffer.getvalue(), ext
 
 
 def get_md5(content: bytes) -> str:
@@ -87,55 +119,39 @@ def save_image_with_md5(
         save_dir: Path,
         file_name: str = "result",
         convert_jpg: bool = True,
-        quality: int = 90,
+        quality: int = 100 # 預設為 100 (最高品質/不壓縮)
 ) -> tuple[Path, str]:
     """將 PIL 圖片物件儲存至指定目錄，自動加上 md5 並回傳 (路徑, md5_hash)。
 
     :param image: PIL Image 物件
     :param save_dir: 儲存目錄
     :param file_name: 檔名 (可帶原副檔名)
-    :param convert_jpg: 是否強制轉換為 .jpg 格式 (預設為 True)
+    :param convert_jpg: 是否強制轉換為 .jpg 格式 (預設為 False)
     :param quality: 若為 JPEG 格式時的壓縮品質 (1-100)
     :return: (最終檔案路徑, md5_hash)
     """
-    # 判斷圖片格式與副檔名
-    ext = Path(file_name).suffix.lower()
-    save_kwargs = {}
-
-    if convert_jpg:
-        fmt = "JPEG"
-        ext = ".jpg"
-        save_kwargs["quality"] = quality
-        if image.mode in ("RGBA", "P", "LA"):
-            image = image.convert("RGB")
-    else:
-        fmt = image.format
-        if not fmt:
-            if ext in (".jpg", ".jpeg"):
-                fmt = "JPEG"
-            else:
-                fmt = "PNG"
-
-        if fmt == "JPEG":
-            save_kwargs["quality"] = quality
-
-        if not ext:
-            ext = f".{fmt.lower()}"
-
-    # 寫入記憶體緩衝區並計算 MD5
-    buffer = io.BytesIO()
-    image.save(buffer, format=fmt, **save_kwargs)
-    image_bytes = buffer.getvalue()
-
-    # 引用 get_md5 計算 Hash
+    image_bytes, ext = _prepare_image_bytes(image, file_name, convert_jpg, quality)
     md5_hash = get_md5(image_bytes)
 
-    # 組合檔名並寫入實體檔案
     stem = Path(file_name).stem
     out_path = save_dir / f"{md5_hash}_{stem}{ext}"
     out_path.write_bytes(image_bytes)
 
     return out_path, md5_hash
+
+
+def compute_image_md5(
+        image: Image.Image,
+        file_name: str = "result",
+        convert_jpg: bool = False,
+        quality: int = 100 # 預設為 100 (最高品質/不壓縮)
+) -> str:
+    """依 save_image_with_md5 相同的格式判斷邏輯計算圖片內容的 md5，但不寫入檔案。
+
+    供 get_or_save_image 在寫檔前先判斷該內容 (md5) 是否已經存在。
+    """
+    image_bytes, _ = _prepare_image_bytes(image, file_name, convert_jpg, quality)
+    return get_md5(image_bytes)
 
 
 def download_image(image_url: str) -> tuple[PIL.Image.Image, str]:

@@ -45,3 +45,31 @@ class ImageTransform:
                 conn.commit()
 
                 return ImageTransformEntity(**row)
+
+    @staticmethod
+    def get_image_transforms_list_by_image_id(
+            image_id: int,
+            transform_model: str,
+            style_ref_path: str,
+    ) -> list[ImageTransformEntity]:
+        """依 image_id + transform_model + style_ref_path 查詢所有未使用 (is_use=FALSE) 的
+        image_transform 記錄"""
+        with mariadb_connection() as conn:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        id, image_id, md5_hash, transform_path, transform_model,
+                        style_ref_path, is_use, is_preprocessed,
+                        created_at, updated_at
+                    FROM image_transform
+                    WHERE image_id = %s
+                      AND transform_model = %s
+                      AND style_ref_path = %s
+                      AND is_use = FALSE
+                    """,
+                    (image_id, transform_model, style_ref_path),
+                )
+                rows = cursor.fetchall()
+
+                return [ImageTransformEntity(**row) for row in rows]

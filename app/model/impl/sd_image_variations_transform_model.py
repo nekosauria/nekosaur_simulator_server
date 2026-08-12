@@ -9,7 +9,6 @@ from pathlib import Path
 from const.image_const import ImageConst
 from model.interface.base_transform_model import BaseTransformModel
 from util.common import common
-from util.device import clear_device_cache
 from util.image import resize_with_padding
 
 logger = common.logger
@@ -30,7 +29,7 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         self.origin_point = origin_point
         self.ref_point = ref_point
 
-        self.guidance_scale = 3.0  # 👈 控制「貼近這張拼貼特徵」的力道，數值越高變形重組越劇烈
+        self.guidance_scale = 6.0  # 👈 控制「貼近這張拼貼特徵」的力道，數值越高變形重組越劇烈
         self.num_inference_steps = 38
 
         self.pipe = None
@@ -67,8 +66,8 @@ class SDImageVariationsTransformModel(BaseTransformModel):
     @override
     def generate(self, req_image: Image.Image, style_ref_image: Image.Image) -> Image.Image:
         # 讀取並統一基本尺寸
-        req_image = resize_with_padding(req_image, target_size=(256, 256))
-        ref_image = resize_with_padding(style_ref_image, target_size=(256, 256))
+        req_image = resize_with_padding(req_image, target_size=(512, 512))
+        ref_image = resize_with_padding(style_ref_image, target_size=(512, 512))
 
         # 轉為 0 ~ 1 區間的 Tensor
         to_tensor = transforms.ToTensor()
@@ -80,14 +79,11 @@ class SDImageVariationsTransformModel(BaseTransformModel):
 
         # 融合完成後，才做 CLIP 標準預處理 (Resize + Normalize)
         clip_normalize = transforms.Compose([
-            transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC, antialias=False),
+            transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
             transforms.Normalize([0.48145466, 0.4578275, 0.40821073], [0.26862954, 0.26130258, 0.27577711]),
         ])
 
         inp_fusion = clip_normalize(fused_tensor).unsqueeze(0).to(self.device, dtype=self.dtype)
-
-        # 清理顯存
-        clear_device_cache(self.device)
 
         # 推論生成 (使用 attribute .images[0] 防範 dict 回傳差異)
         result = self.pipe(
@@ -98,3 +94,4 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         ).images[0]
 
         return result
+

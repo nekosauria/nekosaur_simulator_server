@@ -15,12 +15,22 @@ class ImageUploadResponse:
     此欄位為 True 時代表偵測、向量搜尋、風格轉換三個步驟皆已完整執行。
     """
 
-    # --- Origin Detector 偵測結果 ---
+    # --- Origin Image ---
     origin_image_path: str
     """原圖對外可存取網址。"""
 
+    origin_image_md5_hash: str
+    """原圖 (image 表) 的 md5。"""
+
+    origin_image_created_at: str
+    """原圖 (image 表) 紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
+
+    # --- Origin Detector 偵測結果 ---
     origin_detect_path: str
     """原圖偵測結果圖（含 draw box 標註）的對外可存取網址。"""
+
+    origin_detect_md5_hash: str
+    """原圖偵測結果圖自身的 md5。"""
 
     origin_detect_model: str
     """原圖偵測所使用的模型名稱。"""
@@ -40,12 +50,36 @@ class ImageUploadResponse:
     origin_detect_created_at: str
     """原圖偵測紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
 
-    # --- Similar Detector 偵測結果 ---
+    # --- Similar Image ---
     similar_image_path: str
     """相似圖片對外可存取網址。"""
 
+    similar_image_md5_hash: str
+    """相似圖 (image 表) 的 md5。"""
+
+    similar_image_created_at: str
+    """相似圖 (image 表) 紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
+
+    similar_distance: float
+    """Vector Search 的 Cosine Distance (0.0 ~ 2.0)
+    數值越小代表向量越相似 (Similarity = 1 - Distance)
+
+    常見距離門檻判讀：
+    - 0.00 ~ 0.15: 非常相似 (幾乎同圖/輕微變形)
+    - 0.15 ~ 0.25: 相當相似 (同主題/同類型物件)
+    - 0.25 ~ 0.30: 邊緣相關 (僅背景或構圖部分相似)
+    - > 0.30     : 差異極大 (視覺上不太像)
+    """
+
+    similar_distance_percent:float
+    """轉換成人類易讀的百分比"""
+
+    # --- Similar Detector 偵測結果 ---
     similar_detect_path: str
     """相似圖片偵測結果圖對外可存取網址。"""
+
+    similar_detect_md5_hash: str
+    """相似圖偵測結果圖自身的 md5。"""
 
     similar_detect_model: str
     """相似圖片偵測所使用的模型名稱。"""
@@ -69,6 +103,9 @@ class ImageUploadResponse:
     origin_transform_path: str
     """原圖風格轉換後的結果圖對外可存取網址。"""
 
+    origin_transform_md5_hash: str
+    """原圖轉換結果圖自身的 md5。"""
+
     origin_transform_model: str
     """原圖風格轉換所使用的模型名稱。"""
 
@@ -82,6 +119,9 @@ class ImageUploadResponse:
     similar_transform_path: str
     """相似圖風格轉換後的結果圖對外可存取網址。"""
 
+    similar_transform_md5_hash: str
+    """相似圖轉換結果圖自身的 md5。"""
+
     similar_transform_model: str
     """相似圖風格轉換所使用的模型名稱。"""
 
@@ -90,6 +130,26 @@ class ImageUploadResponse:
 
     similar_transform_created_at: str
     """相似圖轉換紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
+
+    # --- Origin Embedding 向量結果 ---
+    origin_embedding_model: str
+    """原圖向量抽取所使用的模型名稱。"""
+
+    origin_embedding_vector_512: list[float]
+    """原圖的 CLIP 512 維向量。"""
+
+    origin_embedding_created_at: str
+    """原圖向量紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
+
+    # --- Similar Embedding 向量結果 ---
+    similar_embedding_model: str
+    """相似圖向量抽取所使用的模型名稱。"""
+
+    similar_embedding_vector_512: list[float]
+    """相似圖的 CLIP 512 維向量。"""
+
+    similar_embedding_created_at: str
+    """相似圖向量紀錄的建立時間（"%Y-%m-%d %H:%M:%S" 格式字串，伺服器本地時間）。"""
 
     # --- Metrics & System ---
     image_process_count: int
@@ -118,15 +178,19 @@ class ImageUploadResponse:
 
     # 需要統一轉換成字串的建立時間欄位名稱
     _DATETIME_FIELDS = (
+        "origin_image_created_at",
+        "similar_image_created_at",
         "origin_detect_created_at",
         "similar_similar_created_at",
         "origin_transform_created_at",
         "similar_transform_created_at",
+        "origin_embedding_created_at",
+        "similar_embedding_created_at",
     )
 
     def __post_init__(self):
         """
-        統一將四個 created_at 欄位正規化為 "%Y-%m-%d %H:%M:%S" 字串。
+        統一將八個 created_at 欄位正規化為 "%Y-%m-%d %H:%M:%S" 字串。
 
         上游 entity 的 created_at 屬性可能是 datetime 物件（DAO 讀出來未轉換）
         也可能已經是字串，這裡統一收斂成同一種格式，避免不同路徑序列化結果不一致，
@@ -149,51 +213,68 @@ class ImageUploadResponse:
     def to_dict(self) -> dict:
         """將 response 物件序列化為 dict，供 Flask jsonify() 使用。"""
         return {
-            # http stat
             "success": self.success,
-            # 偵測結果
-            "detector": {
-                # origin
-                "origin": {
-                    "image": self.origin_image_path,
-                    "detect_image": self.origin_detect_path,
+            "origin": {
+                "image": {
+                    "image_path": self.origin_image_path,
+                    "md5_hash": self.origin_image_md5_hash,
+                    "created_at": self.origin_image_created_at,
+                },
+                "detector": {
+                    "detect_path": self.origin_detect_path,
+                    "md5_hash": self.origin_detect_md5_hash,
                     "detect_model": self.origin_detect_model,
-                    "has_neko": self.origin_has_cat,
-                    "is_cache": self.origin_detect_is_preprocessed,
-                    "score_list": self.origin_predict_list,
-                    "score_results": self.origin_tag_results,
-                    "create_time": self.origin_detect_created_at,
+                    "has_cat": self.origin_has_cat,
+                    "is_preprocessed": self.origin_detect_is_preprocessed,
+                    "predict_list": self.origin_predict_list,
+                    "tag_results": self.origin_tag_results,
+                    "created_at": self.origin_detect_created_at,
                 },
-                # similar
-                "similar": {
-                    "image": self.similar_image_path,
-                    "detect_image": self.similar_detect_path,
-                    "detect_model": self.similar_detect_model,
-                    "has_neko": self.similar_has_cat,
-                    "is_cache": self.similar_is_preprocessed,
-                    "score_list": self.similar_predict_list,
-                    "score_results": self.similar_tag_results,
-                    "create_time": self.similar_similar_created_at,
-                },
-            },
-            # 風格轉換結果
-            "transform": {
-                # origin
-                "origin": {
-                    "transform_image": self.origin_transform_path,
+                "transform": {
+                    "transform_path": self.origin_transform_path,
+                    "md5_hash": self.origin_transform_md5_hash,
                     "transform_model": self.origin_transform_model,
-                    "is_cache": self.origin_transform_is_preprocessed,
-                    "create_time": self.origin_transform_created_at,
+                    "is_preprocessed": self.origin_transform_is_preprocessed,
+                    "created_at": self.origin_transform_created_at,
                 },
-                # similar
-                "similar": {
-                    "transform_image": self.similar_transform_path,
-                    "transform_model": self.similar_transform_model,
-                    "is_cache": self.similar_transform_is_preprocessed,
-                    "create_time": self.similar_transform_created_at,
+                "embedding": {
+                    "embedding_model": self.origin_embedding_model,
+                    "vector_512": self.origin_embedding_vector_512,
+                    "created_at": self.origin_embedding_created_at,
                 },
             },
-            # metrics
+            "similar": {
+                "image": {
+                    "image": self.similar_image_path,
+                    "md5_hash": self.similar_image_md5_hash,
+                    "created_at": self.similar_image_created_at,
+                    "distance": self.similar_distance,
+                    # 人類易讀的百分比
+                    "distance_percent": self.similar_distance_percent,
+                },
+                "detector": {
+                    "detect_path": self.similar_detect_path,
+                    "md5_hash": self.similar_detect_md5_hash,
+                    "detect_model": self.similar_detect_model,
+                    "has_cat": self.similar_has_cat,
+                    "is_preprocessed": self.similar_is_preprocessed,
+                    "predict_list": self.similar_predict_list,
+                    "tag_results": self.similar_tag_results,
+                    "created_at": self.similar_similar_created_at,
+                },
+                "transform": {
+                    "transform_path": self.similar_transform_path,
+                    "md5_hash": self.similar_transform_md5_hash,
+                    "transform_model": self.similar_transform_model,
+                    "is_preprocessed": self.similar_transform_is_preprocessed,
+                    "created_at": self.similar_transform_created_at,
+                },
+                "embedding": {
+                    "embedding_model": self.similar_embedding_model,
+                    "vector_512": self.similar_embedding_vector_512,
+                    "created_at": self.similar_embedding_created_at,
+                },
+            },
             "metrics": {
                 "image_process_count": self.image_process_count,
                 "image_validate_cost": self.image_validate_cost,

@@ -73,6 +73,8 @@ class ImageDetection:
         if predict_np is None or not isinstance(predict_np, np.ndarray) or predict_np.size == 0:
             raise ValueError("predict_np 不合法，無法寫入檔案")
 
+        has_cat = "cat" in tag_results
+
         # 儲存偵測結果圖
         detect_image = PIL.Image.fromarray(predict_np)
 
@@ -83,6 +85,7 @@ class ImageDetection:
             detect_image=detect_image,
             tag_results=tag_results,
             predict_list=predict_list,
+            has_cat= has_cat
         )
 
 
@@ -91,3 +94,11 @@ class ImageDetection:
         image_detection_entity = ImageDetectionDao.insert(image_detection_entity)
 
         return image_detection_entity
+
+
+    @staticmethod
+    def get_image_detection_metadata_by_image_id(
+            image_id: int,
+            detect_model: str,
+    ) -> ImageDetectionEntity | None:
+        return ImageDetectionDao.get_image_detection_by_image_id(image_id, detect_model)

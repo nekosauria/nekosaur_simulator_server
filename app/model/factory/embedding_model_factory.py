@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Dict, override
 
@@ -5,7 +6,7 @@ from model.impl.clip_embedding_model import ClipEmbeddingModel
 from model.interface.base_embedding_model import BaseEmbeddingModel
 from model.interface.base_model_factory import BaseModelFactory
 from util.common import common
-from util.device import get_gpu_device
+from util.device import get_gpu_device, log_device_memory
 from util.step_timer import StepTimer
 
 logger = common.logger
@@ -26,7 +27,12 @@ class EmbeddingModelFactory(BaseModelFactory[BaseEmbeddingModel]):
 
         timer = StepTimer()
 
-
+        log_device_memory(
+            gpu_device,
+            component="embedding_factory",
+            stage="before_all_models",
+            log_level=logging.INFO,
+        )
 ########################################################################################################################
         # 預先載入 CLIP 模型
         with timer.track("clip_load_cost"):
@@ -39,5 +45,18 @@ class EmbeddingModelFactory(BaseModelFactory[BaseEmbeddingModel]):
             cls._instances[clip_model.name] = clip_model
         logger.info(f"=== clip 模型載入完畢，耗時 {timer.costs['clip_load_cost']}s ===")
 
+        log_device_memory(
+            gpu_device,
+            component=clip_model.name,
+            stage="after_load",
+            log_level=logging.INFO,
+        )
+
 
         logger.info("=== 所有 Embedding 模型載入完畢，準備就緒 ===")
+        log_device_memory(
+            gpu_device,
+            component="embedding_factory",
+            stage="after_all_models",
+            log_level=logging.INFO,
+        )

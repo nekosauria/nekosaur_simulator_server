@@ -71,9 +71,9 @@ def init_stage(app_root_path):
 def model_stage(app_root_path):
     # 在 App 啟動時就把模型餵進記憶體
     logger.info(f"app.root_path: {app_root_path}")
+    EmbeddingModelFactory.init_models(app_root_path)
     DetectionModelFactory.init_models(app_root_path)
     TransformModelFactory.init_models(app_root_path)
-    EmbeddingModelFactory.init_models(app_root_path)
 
 
 if __name__ == '__main__':

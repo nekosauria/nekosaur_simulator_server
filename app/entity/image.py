@@ -23,7 +23,7 @@ class Image:
     """圖片來源網址或原始標記 (VARCHAR(512))"""
 
     raw_source: Optional[Dict[str, Any] | List[Any] | str] = None
-    """第三方 API 回傳的原始 JSON 備查 or 使用者上傳圖片內容 (JSON)"""
+    """第三方 API 回傳的原始 JSON 備查 or 使用者上傳圖片檔名 (JSON)"""
 
     is_deleted: bool = False
     """軟刪除標記 (BOOLEAN)；False 表示正常，True 表示已刪除"""

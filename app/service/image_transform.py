@@ -1,3 +1,4 @@
+import random
 from pathlib import Path
 from PIL import Image
 
@@ -36,7 +37,7 @@ class ImageTransform:
 
         # 確保進模型推論的圖片是 3 channel RGB
         req_image = req.req_image.convert("RGB")
-        style_ref_image = Image.open(Path(req.style_ref_image)).convert("RGB")
+        style_ref_image = Image.open(Path(req.style_ref_path)).convert("RGB")
 
         # 開始生成圖片
         transform_image = svct.start_generate(req_image , style_ref_image )
@@ -51,3 +52,39 @@ class ImageTransform:
         image_transform_entity = ImageTransformDao.insert(image_transform_entity)
 
         return image_transform_entity
+
+
+    @staticmethod
+    def get_image_transform_metadata_by_image_id(
+            image_id: int,
+            transform_model: str,
+            style_ref_path: str,
+    ) -> ImageTransformEntity | None:
+
+        entity_list = ImageTransformDao.get_image_transforms_list_by_image_id(
+            image_id, transform_model, style_ref_path
+        )
+
+        if not entity_list:
+            return None
+
+        selected = random.choice(entity_list)
+
+        logger.debug(
+            "image_transform candidates: %s",
+            [
+                {
+                    "id": item.id,
+                    "transform_path": item.transform_path,
+                }
+                for item in entity_list
+            ],
+        )
+
+        logger.debug(
+            "selected image_transform: id=%s, transform_path=%s",
+            selected.id,
+            selected.transform_path,
+        )
+
+        return selected

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from dto.image_processor import SaveImageRequest, SaveImageResult
-from util.image import save_image_with_md5
+from util.image import save_image_with_md5, compute_image_md5
 from util.common import common
 
 
@@ -13,6 +13,7 @@ class ImageProcessor:
     """
     統一管理圖片落地儲存的路徑慣例與 md5 計算。
     """
+
     @staticmethod
     def save_image(req: SaveImageRequest) -> SaveImageResult:
 
@@ -34,3 +35,4 @@ class ImageProcessor:
             path=path,
             md5=md5
         )
+
