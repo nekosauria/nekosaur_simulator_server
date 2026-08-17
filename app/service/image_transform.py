@@ -59,10 +59,11 @@ class ImageTransform:
             image_id: int,
             transform_model: str,
             style_ref_path: str,
+            is_use: bool,
     ) -> ImageTransformEntity | None:
 
         entity_list = ImageTransformDao.get_image_transforms_list_by_image_id(
-            image_id, transform_model, style_ref_path
+            image_id, transform_model, style_ref_path, is_use
         )
 
         if not entity_list:

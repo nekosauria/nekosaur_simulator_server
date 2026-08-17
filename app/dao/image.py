@@ -23,18 +23,19 @@ class Image:
                 cursor.execute(
                     """
                     INSERT INTO image (
-                        md5_hash, origin_path, image_source, raw_source,
+                        md5_hash, file_name, origin_path, image_source, raw_source,
                         is_deleted, deleted_at, last_checked_at
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     RETURNING 
-                        id, md5_hash, origin_path, image_source, raw_source,
+                        id, md5_hash, file_name, origin_path, image_source, raw_source,
                         is_deleted, deleted_at, last_checked_at, created_at, updated_at
                     """,
                     (
                         image.md5_hash,
+                        image.file_name,
                         str(image.origin_path),
                         image.image_source,
                         raw_source_json,
@@ -61,6 +62,7 @@ class Image:
                     SELECT
                         id,
                         md5_hash,
+                        file_name,
                         origin_path,
                         image_source,
                         raw_source,
@@ -95,6 +97,7 @@ class Image:
                     SELECT
                         id,
                         md5_hash,
+                        file_name,
                         origin_path,
                         image_source,
                         raw_source,
@@ -118,4 +121,3 @@ class Image:
                     row["raw_source"] = json.loads(row["raw_source"])
 
                 return ImageEntity(**row)
-

@@ -9,3 +9,5 @@ cd ～/<your_py_path>/bin
 '''
 pip install -r requirements.txt
 '''
+
+

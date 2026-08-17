@@ -10,6 +10,7 @@ from const.image_const import ImageConst
 from model.interface.base_transform_model import BaseTransformModel
 from util.common import common
 from util.image import resize_with_padding
+from util.torch_util import get_torch_generator
 
 logger = common.logger
 
@@ -19,8 +20,8 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             self, model_path: Path,
             device: str = "cpu",
             dtype: Any = torch.float32,
-            origin_point: float = 0.7,
-            ref_point: float = 0.3
+            origin_point: float = 0.9,
+            ref_point: float = 0.1
     ):
         self._model_path = model_path
         self.device = device
@@ -29,13 +30,13 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         self.origin_point = origin_point
         self.ref_point = ref_point
 
-        self.guidance_scale = 6.0  # 👈 控制「貼近這張拼貼特徵」的力道，數值越高變形重組越劇烈
+        self.guidance_scale = 3.8  # 👈 控制「貼近這張拼貼特徵」的力道，數值越高變形重組越劇烈
         self.num_inference_steps = 38
 
         self.pipe = None
 
         # 測試用的隨機種子
-        self.seed = 42
+        self.seed = None
 
     @override
     @property
@@ -65,6 +66,10 @@ class SDImageVariationsTransformModel(BaseTransformModel):
 
     @override
     def generate(self, req_image: Image.Image, style_ref_image: Image.Image) -> Image.Image:
+        # 動態建立 Generator：若沒指定 seed 就隨機產生，確保每張圖初始雜訊不同
+        generator, actual_seed = get_torch_generator(self.seed, device=self.device)
+        logger.info(f"Generating image with seed: {actual_seed}")
+
         # 讀取並統一基本尺寸
         req_image = resize_with_padding(req_image, target_size=(512, 512))
         ref_image = resize_with_padding(style_ref_image, target_size=(512, 512))
@@ -74,8 +79,12 @@ class SDImageVariationsTransformModel(BaseTransformModel):
         req_tensor = to_tensor(req_image).to(self.device, dtype=self.dtype)
         ref_tensor = to_tensor(ref_image).to(self.device, dtype=self.dtype)
 
-        # 在 0~1 的 RGB 空間做加權融合！
-        fused_tensor = (req_tensor * self.origin_point) + (ref_tensor * self.ref_point)
+        # 在 0~1 的 RGB 空間做加權融合 + clamp 防止數值溢位
+        # 參考圖比例太高容易輸出混亂, ref_point default 0.1
+        fused_tensor = torch.clamp(
+            (req_tensor * self.origin_point) + (ref_tensor * self.ref_point),
+            0.0, 1.0
+        )
 
         # 融合完成後，才做 CLIP 標準預處理 (Resize + Normalize)
         clip_normalize = transforms.Compose([
@@ -90,7 +99,7 @@ class SDImageVariationsTransformModel(BaseTransformModel):
             image=inp_fusion,
             guidance_scale=self.guidance_scale,
             num_inference_steps=self.num_inference_steps,
-            # generator=torch.Generator(device=self.device).manual_seed(self.seed)
+            generator=generator
         ).images[0]
 
         return result

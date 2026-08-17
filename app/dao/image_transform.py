@@ -51,8 +51,9 @@ class ImageTransform:
             image_id: int,
             transform_model: str,
             style_ref_path: str,
+            is_use: bool,
     ) -> list[ImageTransformEntity]:
-        """依 image_id + transform_model + style_ref_path 查詢所有未使用 (is_use=FALSE) 的
+        """依 image_id + transform_model + style_ref_path + is_use 查詢
         image_transform 記錄"""
         with mariadb_connection() as conn:
             with conn.cursor(pymysql.cursors.DictCursor) as cursor:
@@ -66,9 +67,9 @@ class ImageTransform:
                     WHERE image_id = %s
                       AND transform_model = %s
                       AND style_ref_path = %s
-                      AND is_use = FALSE
+                      AND is_use = %s
                     """,
-                    (image_id, transform_model, style_ref_path),
+                    (image_id, transform_model, style_ref_path, is_use),
                 )
                 rows = cursor.fetchall()
 

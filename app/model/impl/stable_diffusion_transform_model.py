@@ -10,7 +10,7 @@ from pathlib import Path
 
 from util.common import common
 from util.image import resize_with_padding
-
+from util.torch_util import get_torch_generator
 
 config = common.config
 logger = common.logger
@@ -64,7 +64,7 @@ class StableDiffusionTransformModel(BaseTransformModel):
         self.pipe = None
 
         # 測試用的隨機種子
-        self.seed = 42
+        self.seed = None
 
     @override
     @property
@@ -107,6 +107,10 @@ class StableDiffusionTransformModel(BaseTransformModel):
 
     @override
     def generate(self, req_image: Image.Image, style_ref_image: Image.Image) -> Image.Image:
+        # 動態建立 Generator：若沒指定 seed 就隨機產生，確保每張圖初始雜訊不同
+        generator, actual_seed = get_torch_generator(self.seed, device=self.device)
+        logger.info(f"Generating image with seed: {actual_seed}")
+
         # load style_ref_image
         req_image = resize_with_padding(req_image, target_size=(512, 512))
         ref_image = resize_with_padding(style_ref_image, target_size=(512, 512))
@@ -120,7 +124,7 @@ class StableDiffusionTransformModel(BaseTransformModel):
             strength=self.strength,
             guidance_scale=self.guidance_scale,
             num_inference_steps=self.num_inference_steps,
-            # generator=torch.Generator(device=self.device).manual_seed(self.seed)
+            generator=generator
         ).images[0]
 
         return result

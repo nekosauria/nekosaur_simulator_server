@@ -3,13 +3,12 @@ import logging
 from pathlib import Path
 
 from PIL import Image
-from pymysql.constants import FLAG
 
 from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
 
 from util.device import get_gpu_device, clear_device_cache, log_device_memory
-from util.image import validate_image, collect_image_paths, compute_image_md5
+from util.image import validate_image, collect_image_paths, compute_image_md5, get_raw_source_info
 from const.image_const import ImageConst
 from util.common import common
 
@@ -101,16 +100,18 @@ def upload_image():
                 return jsonify({"success": False, "error": error}), status
 
             # 前端取得參數
+            detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
+            transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
+            style_ref_path = request.form.get("style_ref_path", config.get('image', "default_style_ref_path"))
+            logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
+
             origin_image = Image.open(origin_file)
             ora_md5 = compute_image_md5(
                 image=origin_image,
                 file_name=origin_file.filename,
                 convert_jpg=False,
             )
-            detect_model = request.form.get("detect_model", ImageConst.MODEL_YOLO)
-            transform_model = request.form.get("transform_model", ImageConst.MODEL_STABLE_DIFFUSION)
-            style_ref_path = request.form.get("style_ref_path", config.get('image', "default_style_ref_path"))
-            logger.debug(f"detect_model: {detect_model}, transform_model: {transform_model}")
+            origin_raw_source = get_raw_source_info(origin_file)
 
 
 #  === save origin image & get similar info ===
@@ -143,8 +144,9 @@ def upload_image():
                         md5_hash=origin_result.md5,
                         origin_path=origin_result.path,
                         image_source=f'{web_dns_url}{upload_prefix}',
-                        raw_source=origin_file.filename,
-                        is_deleted=False
+                        file_name=origin_file.filename,
+                        raw_source=origin_raw_source,
+                        is_deleted=False,
                     )
                 )
 
@@ -216,7 +218,7 @@ def upload_image():
                 origin_detect_result = ImageProcessorService.save_image(SaveImageRequest(
                     req_image=origin_detect_res.detect_image,
                     category="user_upload_detect_path",
-                    file_name=origin_file.filename,
+                    file_name=origin_image_entity.file_name,
                     sub_dir=detect_model,
                     convert_jpg=True
                 ))
@@ -261,7 +263,7 @@ def upload_image():
                 similar_detect_result = ImageProcessorService.save_image(SaveImageRequest(
                     req_image=similar_detect_res.detect_image,
                     category="thecatapi_detect_path",
-                    file_name=similar_image_entity.raw_source,
+                    file_name=similar_image_entity.file_name,
                     sub_dir=detect_model,
                     convert_jpg=True
                 ))
@@ -279,7 +281,7 @@ def upload_image():
                         is_preprocessed=True,
                     )
                 )
-                # 寫入 db 為 true, 但是第一次使用狀態給 False
+                # 緩存狀態寫入 db 為 true, 但是第一次使用狀態給 False
                 similar_image_detection_entity.is_preprocessed = False
 
 
@@ -292,6 +294,7 @@ def upload_image():
                 image_id=origin_image_entity.id,
                 transform_model=transform_model,
                 style_ref_path=style_ref_path,
+                is_use=False
             )
 
             # 沒有則寫入
@@ -309,7 +312,7 @@ def upload_image():
                 origin_transform_result = ImageProcessorService.save_image(SaveImageRequest(
                     req_image=origin_transform_res.transform_image,
                     category="user_upload_transform_path",
-                    file_name=origin_file.filename,
+                    file_name=origin_image_entity.file_name,
                     sub_dir=transform_model,
                     convert_jpg=True
                 ))
@@ -323,10 +326,10 @@ def upload_image():
                         transform_model=transform_model,
                         style_ref_path=style_ref_path,
                         is_use=True,
-                        is_preprocessed=True,
+                        is_preprocessed=False,
                     )
                 )
-                # 寫入 db 為 true, 但是第一次使用狀態給 False
+                # 緩存狀態寫入 db 為 true, 但是第一次使用狀態給 False
                 origin_transform_entity.is_preprocessed = False
 
 
@@ -339,6 +342,7 @@ def upload_image():
                 image_id=similar_image_entity.id,
                 transform_model=transform_model,
                 style_ref_path=style_ref_path,
+                is_use=False
             )
 
             # 沒有則寫入
@@ -356,7 +360,7 @@ def upload_image():
                 similar_transform_result = ImageProcessorService.save_image(SaveImageRequest(
                     req_image=similar_transform_res.transform_image,
                     category="thecatapi_transform_path",
-                    file_name=similar_image_entity.raw_source,
+                    file_name=similar_image_entity.file_name,
                     sub_dir=transform_model,
                     convert_jpg=True
                 ))
@@ -370,11 +374,11 @@ def upload_image():
                         transform_model=transform_model,
                         style_ref_path=style_ref_path,
                         is_use=True,
-                        is_preprocessed=True,
+                        is_preprocessed=False,
                     )
                 )
                 # 寫入 db 為 true, 但是第一次使用狀態給 False
-                similar_transform_entity.is_preprocessed = False
+                similar_transform_entity.is_use = False
 
 
 

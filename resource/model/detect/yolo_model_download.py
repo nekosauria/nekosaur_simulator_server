@@ -1,5 +1,4 @@
 from ultralytics import YOLO
-from utils.pypath import load_PP
 
 # https://docs.ultralytics.com/models/yolo11/
 # 下載 yolo11n model（最輕量版本）

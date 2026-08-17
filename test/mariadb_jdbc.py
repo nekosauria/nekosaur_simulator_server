@@ -2,13 +2,17 @@ import hashlib
 import json
 import pymysql
 
+from util.common import common
+
+config = common.config
+
 DB_CONFIG = {
-    "host": "10.10.3.70",
-    "port": 3306,
-    "user": "ap",
-    "password": "1qaz@WSX",
-    "database": "nekosaur_db",
-    "charset": "utf8mb4",
+    "host": config.get('mariadb', 'mariadb_host'),
+    "port": int(config.get('mariadb', 'mariadb_port')),
+    "user": config.get('mariadb', 'mariadb_user'),
+    "password": config.get('mariadb', 'mariadb_password'),
+    "database": config.get('mariadb', 'mariadb_database'),
+    "charset": config.get('mariadb', 'charset'),
 }
 
 

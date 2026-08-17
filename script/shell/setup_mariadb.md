@@ -71,7 +71,7 @@ mariadb -u root -p
     CREATE DATABASE nekosaur_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     
     -- create user && add privileges
-    CREATE USER 'ap'@'%' IDENTIFIED BY '1qaz@WSX';
+    CREATE USER 'ap'@'%' IDENTIFIED BY 'your_password';
     GRANT ALL PRIVILEGES ON nekosaur_db.* TO 'ap'@'%';
     FLUSH PRIVILEGES;
     

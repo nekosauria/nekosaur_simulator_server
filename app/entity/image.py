@@ -16,14 +16,17 @@ class Image:
     md5_hash: str = ""
     """圖片檔案的 MD5 雜湊值 (CHAR(32))，具有唯一性約束，用於避免重複圖檔寫入"""
 
+    file_name: str = ""
+    """圖片檔名 (VARCHAR(255))"""
+
     origin_path: Path = ""
     """原始圖片在伺服器或儲存庫中的路徑 (VARCHAR(512))，支援 pathlib.Path 或字串"""
 
     image_source: Optional[str] = None
     """圖片來源網址或原始標記 (VARCHAR(512))"""
 
-    raw_source: Optional[Dict[str, Any] | List[Any] | str] = None
-    """第三方 API 回傳的原始 JSON 備查 or 使用者上傳圖片檔名 (JSON)"""
+    raw_source: Optional[Dict[str, Any] | List[Any]] = None
+    """原始圖片元資料 (Format, Size, Width, Height 等 JSON)"""
 
     is_deleted: bool = False
     """軟刪除標記 (BOOLEAN)；False 表示正常，True 表示已刪除"""

@@ -1,6 +1,8 @@
 import hashlib
 import io
+import os
 from pathlib import Path
+from typing import Any, Optional, Tuple, Dict
 
 import PIL
 import requests
@@ -169,3 +171,44 @@ def download_image(image_url: str) -> tuple[PIL.Image.Image, str]:
     download_img_name = image_url.split("/")[-1]
 
     return download_img, download_img_name
+
+
+def get_raw_source_info(
+    file, filename: str = "unknown"
+) -> Dict[str, Any]:
+    """
+    解析 Flask FileStorage 上傳檔案的基本資訊與特徵
+
+    :param file: Flask 的 request.files 檔案物件 (FileStorage)
+    :param filename: 檔案名稱 (選填，若未傳則自動從 file.filename 抓取)
+    :return: 圖片資訊字典 (JSON)
+    """
+    # 優先使用傳入的 filename，若無則抓取 file.filename
+    file_name = filename if filename != "unknown" else getattr(file, "filename", "unknown")
+
+    # 1. 讀取檔案 size 並計算大小
+    file.seek(0, 2)  # 移動指標到末端取得 byte 長度
+    file_size_bytes = file.tell()
+    file.seek(0)     # **極重要**：重置指標回開頭，避免影響後續讀取
+
+    # 2. 開啟圖片解析特徵
+    image = Image.open(file)
+    file.seek(0)     # 讀取完 Image 後再次重置指標
+
+    width, height = image.size
+    img_format = (image.format or "UNKNOWN").upper()
+    color_mode = image.mode
+
+    ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else img_format.lower()
+
+    return {
+        "filename": file_name,
+        "extension": ext,
+        "format": img_format,
+        "width": width,
+        "height": height,
+        "aspect_ratio": round(width / height, 2) if height > 0 else 0,
+        "color_mode": color_mode,
+        "file_size_bytes": file_size_bytes,
+        "file_size_kb": round(file_size_bytes / 1024, 2),
+    }

@@ -1,3 +1,4 @@
+import atexit
 import os
 
 from flask import Flask, jsonify
@@ -9,9 +10,13 @@ from model.factory.detection_model_factory import DetectionModelFactory
 from model.factory.transform_model_factory import TransformModelFactory
 from model.factory.embedding_model_factory import EmbeddingModelFactory
 from util.common import common
+from worker.fetch_thecatapi_consumer import fetch_thecatapi_consumer
+
 
 config = common.config
 logger = common.logger
+
+CONSUMERS = [fetch_thecatapi_consumer]
 
 
 def create_app():
@@ -75,11 +80,22 @@ def model_stage(app_root_path):
     DetectionModelFactory.init_models(app_root_path)
     TransformModelFactory.init_models(app_root_path)
 
+def consumer_stage():
+    # 啟動 RabbitMQ consumer（背景 thread），須在 model_stage 之後執行
+    # 確保 consumer 收到第一筆訊息時，embedding/detection/transform model 都已經 load 完成
+    for consumer in CONSUMERS:
+        consumer.start()
+        logger.info(f"Consumer started: {consumer.queue_name}")
+
+    # app 關閉時（正常退出 / SIGTERM）優雅停止所有 consumer
+    atexit.register(lambda: [c.stop() for c in CONSUMERS])
+
 
 if __name__ == '__main__':
     app = create_app()
 
     init_stage(app.root_path)
     model_stage(app.root_path)
+    consumer_stage()
 
     app.run(debug=False, host=config.get('server', 'web_base_host'), port=config.get('server', 'web_base_port'))
