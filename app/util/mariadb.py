@@ -1,4 +1,3 @@
-# util/mariadb.py
 import pymysql.cursors
 from contextlib import contextmanager
 from dbutils.pooled_db import PooledDB

@@ -1,11 +1,13 @@
-SET FOREIGN_KEY_CHECKS = 0;
+-- 清空 table 測試用
+--SET FOREIGN_KEY_CHECKS = 0;
+--
+--TRUNCATE TABLE image_embedding;
+--TRUNCATE TABLE image_transform;
+--TRUNCATE TABLE image_detection;
+--TRUNCATE TABLE image;
+--
+--SET FOREIGN_KEY_CHECKS = 1;
 
-TRUNCATE TABLE image_embedding;
-TRUNCATE TABLE image_transform;
-TRUNCATE TABLE image_detection;
-TRUNCATE TABLE image;
-
-SET FOREIGN_KEY_CHECKS = 1;
 
 DROP TABLE IF EXISTS image_embedding;
 DROP TABLE IF EXISTS image_transform;

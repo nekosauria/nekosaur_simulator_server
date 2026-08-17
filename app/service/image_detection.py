@@ -1,9 +1,13 @@
 import numpy as np
 
 from dto.image_detection import DetectionResult, DetectionRequest
+from dto.image_processor import SaveImageRequest
 from model.interface.base_detection_model import BaseDetectionModel
 from util.common import common
+from util.image import check_file_exists
 from util.image_draw import draw_detections
+
+from service.image_processor import ImageProcessor as ImageProcessorService
 
 from dao.image_detection import ImageDetection as ImageDetectionDao
 from entity.image_detection import ImageDetection as ImageDetectionEntity
@@ -102,3 +106,68 @@ class ImageDetection:
             detect_model: str,
     ) -> ImageDetectionEntity | None:
         return ImageDetectionDao.get_image_detection_by_image_id(image_id, detect_model)
+
+    @staticmethod
+    def get_or_generate_detection(
+            image_entity,
+            req_image,
+            detect_model: str,
+            save_category: str,
+            is_preprocessed: bool,
+    ) -> ImageDetectionEntity:
+        """
+        檢查是否已有 detection 紀錄，有則直接回傳，
+        沒有則產生一筆新的（推論 → 存檔 → 寫 DB）。
+
+        :param save_category: 存檔分類，決定實體檔案存到哪個 category 目錄
+                               （例如 "thecatapi_detect_path"、"user_upload_detect_path"）
+        :param is_preprocessed: 新產生的這筆紀錄是否為「預處理」產生
+                                （背景批次任務產出 = True；即時回應使用者請求產出 = False）
+        """
+        # === 檢查是否已有 detection 紀錄 ===
+        existing_detection_entity = ImageDetection.get_image_detection_metadata_by_image_id(
+            image_id=image_entity.id,
+            detect_model=detect_model,
+        )
+
+        # 有紀錄時，使用 util 檢查實體檔案是否存在
+        if existing_detection_entity is not None:
+            if check_file_exists(str(existing_detection_entity.detect_path)):
+                return existing_detection_entity
+
+            # 實體檔案遺失，紀錄 error 並繼續往下執行重新推論與補檔
+            logger.error(
+                f"Detection metadata exists (ID: {existing_detection_entity.id}), "
+                f"but physical file is missing at: {existing_detection_entity.detect_path}. Regenerating..."
+            )
+
+        # === 沒有紀錄或實體檔遺失，執行物件偵測模型推論 ===
+        detect_res = ImageDetection.process_image_detection(
+            DetectionRequest(
+                req_image=req_image,
+                detect_model=detect_model,
+            )
+        )
+
+        # === 將標註框圖存檔（依 save_category 決定存放目錄）===
+        detect_result = ImageProcessorService.save_image(SaveImageRequest(
+            req_image=detect_res.detect_image,
+            category=save_category,
+            file_name=image_entity.file_name,
+            sub_dir=detect_model,
+            convert_jpg=True,
+        ))
+
+        # === 寫入 image_detection metadata，回傳新建立的 entity ===
+        return ImageDetection.save_image_detection_metadata(
+            ImageDetectionEntity(
+                image_id=image_entity.id,
+                md5_hash=detect_result.md5,
+                detect_path=detect_result.path,
+                detect_model=detect_model,
+                predict_list=detect_res.predict_list,
+                tag_results=detect_res.tag_results,
+                has_cat=detect_res.has_cat,
+                is_preprocessed=is_preprocessed,
+            )
+        )

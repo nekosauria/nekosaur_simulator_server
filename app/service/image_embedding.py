@@ -107,3 +107,41 @@ class ImageEmbedding:
         )
 
         return selected_image_embedding
+
+
+    @staticmethod
+    def get_or_generate_embedding(
+            image_entity,
+            req_image,
+            embedding_model: str,
+    ) -> ImageEmbeddingEntity:
+        """
+        檢查是否已有 embedding 紀錄，有則直接回傳，
+        沒有則產生一筆新的（推論 → 寫 DB）。
+        """
+        # === 檢查是否已有 embedding 紀錄 ===
+        existing_embedding_entity = ImageEmbedding.get_image_embedding_metadata_by_image_id(
+            image_id=image_entity.id,
+            embedding_model=embedding_model,
+        )
+
+        # 有紀錄，直接回傳，不需要重新跑模型推論
+        if existing_embedding_entity is not None:
+            return existing_embedding_entity
+
+        # === 沒有紀錄，執行 embedding 模型推論 ===
+        embedding_res = ImageEmbedding.process_image_embedding(
+            EmbeddingRequest(
+                req_image=req_image,
+                embedding_model=embedding_model,
+            )
+        )
+
+        # === 寫入 image_embedding metadata，回傳新建立的 entity ===
+        return ImageEmbedding.save_image_embedding_metadata(
+            ImageEmbeddingEntity(
+                image_id=image_entity.id,
+                model_name=embedding_model,
+                vector_512=embedding_res.image_embedding_vector,
+            )
+        )

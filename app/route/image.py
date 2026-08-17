@@ -7,29 +7,20 @@ from PIL import Image
 from aop.lock import sqlite_table_lock
 from flask import Blueprint, request, jsonify
 
-from util.device import get_gpu_device, clear_device_cache, log_device_memory
+from util.torch_util import get_gpu_device, clear_device_cache_with_log
 from util.image import validate_image, collect_image_paths, compute_image_md5, get_raw_source_info
 from const.image_const import ImageConst
 from util.common import common
 
-from dto.image_detection import DetectionRequest
-from dto.image_processor import SaveImageRequest
-from dto.image_transform import TransformRequest
-from dto.image_embedding import EmbeddingRequest
 from dto.image_upload import ImageUploadResponse
 from dto.lock_config import LockConfig
 
 from service.image_detection import ImageDetection as ImageDetectionService
 from service.image_transform import ImageTransform as ImageTransformService
 from service.image import Image as ImageService
-from service.image_processor import ImageProcessor as ImageProcessorService
 from service.image_embedding import ImageEmbedding as ImageEmbeddingService
 from service.sys_state import SysState as SysStateService
 
-from entity.image import Image as ImageEntity
-from entity.image_detection import ImageDetection as ImageDetectionEntity
-from entity.image_transform import ImageTransform as ImageTransformEntity
-from entity.image_embedding import ImageEmbedding as ImageEmbeddingEntity
 
 from entity.sys_state import SysState as SysStateEntity
 from util.step_timer import StepTimer
@@ -114,7 +105,7 @@ def upload_image():
             origin_raw_source = get_raw_source_info(origin_file)
 
 
-#  === save origin image & get similar info ===
+#  === save origin image info ===
 # ======================================================================================================================
         #  === 原圖處理 ===
         with timer.track("image_embedding_cost"):
@@ -127,55 +118,27 @@ def upload_image():
             # 沒有則寫入
             if origin_image_entity is None:
                 # save origin image
-                origin_result = ImageProcessorService.save_image(
-                    SaveImageRequest(
-                        req_image=origin_image,
-                        category="user_upload_origin_path",
-                        file_name=origin_file.filename,
-                        sub_dir=None,
-                        convert_jpg=False
-                    )
-                )
-                logger.debug(f"origin_path: {origin_result.path}, origin_md5: {origin_result.md5}")
-
-                # save origin image metadata
-                origin_image_entity = ImageService.insert_image_metadata(
-                    ImageEntity(
-                        md5_hash=origin_result.md5,
-                        origin_path=origin_result.path,
-                        image_source=f'{web_dns_url}{upload_prefix}',
-                        file_name=origin_file.filename,
-                        raw_source=origin_raw_source,
-                        is_deleted=False,
-                    )
+                origin_image_entity = ImageService.save_and_insert_image(
+                    req_image=origin_image,
+                    file_name=origin_file.filename,
+                    save_category=ImageConst.USER_UPLOAD_ORIGIN_PATH,
+                    image_source=ImageConst.USER_UPLOAD_IMAGE_SOURCE,
+                    raw_source=origin_raw_source,
                 )
 
-            # 檢查是否已有 image_embedding info
-            origin_image_embedding_entity = ImageEmbeddingService.get_image_embedding_metadata_by_image_id(
-                image_id=origin_image_entity.id,
+
+        #  === 寫入 image_embedding info ===
+        # ======================================================================================================================
+            # get origin image_embedding vector
+            origin_image_embedding_entity = ImageEmbeddingService.get_or_generate_embedding(
+                image_entity=origin_image_entity,
+                req_image=origin_image,
                 embedding_model=embedding_model,
             )
 
-            # 沒有則寫入
-            if origin_image_embedding_entity is None:
-                # get origin image_embedding vector
-                origin_embedding_res = ImageEmbeddingService.process_image_embedding(
-                    EmbeddingRequest(
-                        req_image=origin_image,
-                        embedding_model=embedding_model,
-                    )
-                )
 
-                # save origin image_embedding metadata
-                origin_image_embedding_entity = ImageEmbeddingService.save_image_embedding_metadata(
-                    ImageEmbeddingEntity(
-                        image_id=origin_image_entity.id,
-                        model_name=embedding_model,
-                        vector_512=origin_embedding_res.image_embedding_vector
-                    )
-                )
-
-            #  === 相似圖處理 ===
+        #  === get similar image & embedding info ===
+        # ======================================================================================================================
             # search similar embedding_image entity
             similar_image_embedding_entity = ImageEmbeddingService.search_similar_images_embedding(
                 origin_image_embedding_entity
@@ -185,8 +148,8 @@ def upload_image():
             if similar_image_embedding_entity.image_id is None:
                 similar_image_entity = origin_image_entity
                 similar_image = origin_image
+            # get similar image entity
             else:
-                # similar image entity
                 similar_image_entity = ImageService.get_image_metadata_by_id(
                     similar_image_embedding_entity.image_id
                 )
@@ -195,213 +158,69 @@ def upload_image():
 
 # === 寫入 origin detect info ===
 # ======================================================================================================================
-        # origin image detect
         with timer.track("origin_detector_cost"):
-
-            # 檢查是否已有 detection info
-            origin_image_detection_entity = ImageDetectionService.get_image_detection_metadata_by_image_id(
-                image_id=origin_image_entity.id,
+            origin_image_detection_entity = ImageDetectionService.get_or_generate_detection(
+                image_entity=origin_image_entity,
+                req_image=origin_image,
                 detect_model=detect_model,
+                save_category=ImageConst.USER_UPLOAD_DETECT_PATH,
+                is_preprocessed=True,
             )
+            # DB 寫入的是 True（代表已產生實體檔案/快取），
+            # 但回傳給前端的這個物件要標記 False，讓前端知道這張是「當下即時產生」而非沿用舊快取
+            origin_image_detection_entity.is_preprocessed = False
 
-            # 沒有則寫入
-            if origin_image_detection_entity is None:
-                # draw predict detect image
-                origin_detect_res = ImageDetectionService.process_image_detection(
-                    DetectionRequest(
-                        req_image=origin_image,
-                        detect_model=detect_model,
-                    )
-                )
-
-                # save origin detect image
-                origin_detect_result = ImageProcessorService.save_image(SaveImageRequest(
-                    req_image=origin_detect_res.detect_image,
-                    category="user_upload_detect_path",
-                    file_name=origin_image_entity.file_name,
-                    sub_dir=detect_model,
-                    convert_jpg=True
-                ))
-
-                # save origin image_detection metadata
-                origin_image_detection_entity = ImageDetectionService.save_image_detection_metadata(
-                    ImageDetectionEntity(
-                        image_id=origin_image_entity.id,
-                        md5_hash=origin_detect_result.md5,
-                        detect_path=origin_detect_result.path,
-                        detect_model=detect_model,
-                        predict_list=origin_detect_res.predict_list,
-                        tag_results=origin_detect_res.tag_results,
-                        has_cat=origin_detect_res.has_cat,
-                        is_preprocessed=True,
-                    )
-                )
-                # 寫入 db 為 true, 但是第一次使用狀態給 False
-                origin_image_detection_entity.is_preprocessed = False
 
 # === 寫入 similar detect info ===
 # ======================================================================================================================
         with timer.track("similar_detect_cost"):
-
-            # 檢查是否已有 detection info
-            similar_image_detection_entity = ImageDetectionService.get_image_detection_metadata_by_image_id(
-                image_id=similar_image_entity.id,
+            similar_image_detection_entity = ImageDetectionService.get_or_generate_detection(
+                image_entity=similar_image_entity,
+                req_image=similar_image,
                 detect_model=detect_model,
+                save_category=ImageConst.USER_UPLOAD_DETECT_PATH,
+                is_preprocessed=True,
             )
-
-            # 沒有則寫入
-            if similar_image_detection_entity is None:
-                # draw similar detect image
-                similar_detect_res = ImageDetectionService.process_image_detection(
-                    DetectionRequest(
-                        req_image=similar_image,
-                        detect_model=detect_model,
-                    )
-                )
-
-                # save similar detect image
-                similar_detect_result = ImageProcessorService.save_image(SaveImageRequest(
-                    req_image=similar_detect_res.detect_image,
-                    category="thecatapi_detect_path",
-                    file_name=similar_image_entity.file_name,
-                    sub_dir=detect_model,
-                    convert_jpg=True
-                ))
-
-                # save similar image_detection metadata
-                similar_image_detection_entity = ImageDetectionService.save_image_detection_metadata(
-                    ImageDetectionEntity(
-                        image_id=similar_image_entity.id,
-                        md5_hash=similar_detect_result.md5,
-                        detect_path=similar_detect_result.path,
-                        detect_model=detect_model,
-                        predict_list=similar_detect_res.predict_list,
-                        tag_results=similar_detect_res.tag_results,
-                        has_cat=similar_detect_res.has_cat,
-                        is_preprocessed=True,
-                    )
-                )
-                # 緩存狀態寫入 db 為 true, 但是第一次使用狀態給 False
-                similar_image_detection_entity.is_preprocessed = False
+            # 緩存狀態寫入 db 為 true, 但是第一次使用狀態給 False
+            similar_image_detection_entity.is_preprocessed = False
 
 
 #  === 寫入 origin transform info ===
 # ======================================================================================================================
         with timer.track("origin_transform_cost"):
-
-            # 檢查是否已有 transform info 的 cache
-            origin_transform_entity = ImageTransformService.get_image_transform_metadata_by_image_id(
-                image_id=origin_image_entity.id,
+            origin_transform_entity = ImageTransformService.get_or_generate_transform(
+                image_entity=origin_image_entity,
+                req_image=origin_image,
                 transform_model=transform_model,
                 style_ref_path=style_ref_path,
-                is_use=False
+                save_category=ImageConst.USER_UPLOAD_TRANSFORM_PATH,
+                is_use=True,
+                is_preprocessed=True,
             )
-
-            # 沒有則寫入
-            if origin_transform_entity is None:
-                # 風格轉換圖生成
-                origin_transform_res = ImageTransformService.process_image_transform(
-                    TransformRequest(
-                        req_image=origin_image,
-                        transform_model=transform_model,
-                        style_ref_path=style_ref_path
-                    )
-                )
-
-                # 下載圖片
-                origin_transform_result = ImageProcessorService.save_image(SaveImageRequest(
-                    req_image=origin_transform_res.transform_image,
-                    category="user_upload_transform_path",
-                    file_name=origin_image_entity.file_name,
-                    sub_dir=transform_model,
-                    convert_jpg=True
-                ))
-
-                # save image_transform metadata
-                origin_transform_entity = ImageTransformService.save_image_transformation_metadata(
-                    ImageTransformEntity(
-                        image_id=origin_image_entity.id,
-                        md5_hash=origin_transform_result.md5,
-                        transform_path=origin_transform_result.path,
-                        transform_model=transform_model,
-                        style_ref_path=style_ref_path,
-                        is_use=True,
-                        is_preprocessed=False,
-                    )
-                )
-                # 緩存狀態寫入 db 為 true, 但是第一次使用狀態給 False
-                origin_transform_entity.is_preprocessed = False
+            # 寫入 db 為 true, 但是第一次生成 cache 狀態給 False
+            origin_transform_entity.is_preprocessed = False
 
 
 #  === 寫入 similar transform info ===
 # ======================================================================================================================
         with timer.track("similar_transform_cost"):
-
-            # 檢查是否已有 transform info 的 cache
-            similar_transform_entity = ImageTransformService.get_image_transform_metadata_by_image_id(
-                image_id=similar_image_entity.id,
+            similar_transform_entity = ImageTransformService.get_or_generate_transform(
+                image_entity=similar_image_entity,
+                req_image=similar_image,
                 transform_model=transform_model,
                 style_ref_path=style_ref_path,
-                is_use=False
+                save_category=ImageConst.USER_UPLOAD_TRANSFORM_PATH,
+                is_use=True,
+                is_preprocessed=True,
             )
-
-            # 沒有則寫入
-            if similar_transform_entity is None:
-                # 風格轉換 & 下載圖
-                similar_transform_res = ImageTransformService.process_image_transform(
-                    TransformRequest(
-                        req_image=similar_image,
-                        transform_model=transform_model,
-                        style_ref_path=style_ref_path
-                    )
-                )
-
-                # 下載圖片
-                similar_transform_result = ImageProcessorService.save_image(SaveImageRequest(
-                    req_image=similar_transform_res.transform_image,
-                    category="thecatapi_transform_path",
-                    file_name=similar_image_entity.file_name,
-                    sub_dir=transform_model,
-                    convert_jpg=True
-                ))
-
-                # 寫 image_transform metadata
-                similar_transform_entity = ImageTransformService.save_image_transformation_metadata(
-                    ImageTransformEntity(
-                        image_id=similar_image_entity.id,
-                        md5_hash=similar_transform_result.md5,
-                        transform_path=similar_transform_result.path,
-                        transform_model=transform_model,
-                        style_ref_path=style_ref_path,
-                        is_use=True,
-                        is_preprocessed=False,
-                    )
-                )
-                # 寫入 db 為 true, 但是第一次使用狀態給 False
-                similar_transform_entity.is_use = False
+            # 寫入 db 為 true, 但是第一次生成 cache 狀態給 False
+            similar_transform_entity.is_preprocessed = False
 
 
-
-#  === debug memory usage ===
+#  === clear & debug memory usage ===
 # ======================================================================================================================
-        # 清理前
-        log_device_memory(
-            gpu_device,
-            component="flask_upload_api_finished",
-            stage="before_clear_cache",
-            log_level=logging.DEBUG
-        )
+    clear_device_cache_with_log(gpu_device, component="flask_upload_api_finished", log_level=logging.INFO)
 
-        # 一個週期完成後，清理 PyTorch 顯存快取
-        clear_device_cache(gpu_device)
-
-        # 清理後
-        log_device_memory(
-            gpu_device,
-            component="flask_upload_api_finished",
-            stage="after_clear_cache",
-            log_level=logging.DEBUG
-        )
 
     # === 跳出 api_total_cost 的 with 區塊後，計時器才正式完成並寫入 api_total_cost ===
 

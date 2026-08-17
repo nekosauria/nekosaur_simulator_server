@@ -6,7 +6,7 @@ from model.impl.clip_embedding_model import ClipEmbeddingModel
 from model.interface.base_embedding_model import BaseEmbeddingModel
 from model.interface.base_model_factory import BaseModelFactory
 from util.common import common
-from util.device import get_gpu_device, log_device_memory
+from util.torch_util import get_gpu_device, log_device_memory
 from util.step_timer import StepTimer
 
 logger = common.logger

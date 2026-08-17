@@ -69,10 +69,12 @@ mariadb -u root -p
     
     -- 建立資料庫 (使用 utf8mb4 支援多國語言與 Emoji)
     CREATE DATABASE nekosaur_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE nekosaur_db_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     
     -- create user && add privileges
     CREATE USER 'ap'@'%' IDENTIFIED BY 'your_password';
     GRANT ALL PRIVILEGES ON nekosaur_db.* TO 'ap'@'%';
+    GRANT ALL PRIVILEGES ON nekosaur_db_test.* TO 'ap'@'%';
     FLUSH PRIVILEGES;
     
     EXIT;

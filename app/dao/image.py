@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 import pymysql
 
@@ -121,3 +122,78 @@ class Image:
                     row["raw_source"] = json.loads(row["raw_source"])
 
                 return ImageEntity(**row)
+
+    @staticmethod
+    def soft_delete_image(image_id: int) -> None:
+        """將 image 標記為已刪除（is_deleted=TRUE, deleted_at=now()），不刪除實體資料列"""
+        with mariadb_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE image
+                    SET is_deleted = TRUE,
+                        deleted_at = NOW(),
+                        last_checked_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (image_id,),
+                )
+                conn.commit()
+
+    @staticmethod
+    def get_images_created_between(
+            after: datetime,
+            before: datetime,
+            limit: int,
+    ) -> list[ImageEntity]:
+        """查詢 created_at 落在 [after, before) 區間內、尚未軟刪除的圖片，
+        依 created_at 由舊到新排序，最多回傳 limit 筆。"""
+        with mariadb_connection() as conn:
+            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        id,
+                        md5_hash,
+                        file_name,
+                        origin_path,
+                        image_source,
+                        raw_source,
+                        is_deleted,
+                        deleted_at,
+                        last_checked_at,
+                        created_at,
+                        updated_at
+                    FROM image
+                    WHERE created_at >= %s
+                      AND created_at < %s
+                      AND is_deleted = FALSE
+                    ORDER BY created_at ASC
+                    LIMIT %s
+                    """,
+                    (after, before, limit),
+                )
+
+                rows = cursor.fetchall()
+
+                for row in rows:
+                    if row["raw_source"] and isinstance(row["raw_source"], str):
+                        row["raw_source"] = json.loads(row["raw_source"])
+
+                return [ImageEntity(**row) for row in rows]
+
+    @staticmethod
+    def update_last_checked_at(image_id: int) -> None:
+        """更新指定圖片的 last_checked_at 時間戳記；若未傳入時間則預設為目前時間 (NOW())"""
+        with mariadb_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE image
+                    SET last_checked_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (image_id,),
+                )
+
+                conn.commit()

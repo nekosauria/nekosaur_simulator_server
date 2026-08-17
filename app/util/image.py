@@ -1,8 +1,7 @@
 import hashlib
 import io
-import os
 from pathlib import Path
-from typing import Any, Optional, Tuple, Dict
+from typing import Any, Dict
 
 import PIL
 import requests
@@ -12,6 +11,19 @@ from const.image_const import ImageConst
 from util.common import common
 
 logger = common.logger
+
+
+def check_file_exists(file_path: str | Path) -> bool:
+    """檢查實體檔案是否存在（用來判斷是否已被搬移/損壞/遺失）"""
+    path_obj = Path(file_path) if isinstance(file_path, str) else file_path
+    exists = path_obj.is_file()
+
+    if not exists:
+        logger.warning(f"File missing or invalid: {file_path}")
+    else:
+        logger.debug(f"check_file_exists: file_path={file_path}, exists=True")
+
+    return exists
 
 
 def collect_image_paths(folder, recursive: bool = True) -> list[str]:
@@ -156,21 +168,17 @@ def compute_image_md5(
     return get_md5(image_bytes)
 
 
-def download_image(image_url: str) -> tuple[PIL.Image.Image, str]:
-    """下載網路圖片，回傳 (PIL Image 物件, 原始檔名)。"""
-    # === 原始圖片處理 ===
-    # 下載圖片 bytes
+def url_to_pil_image(image_url: str) -> tuple[PIL.Image.Image, str]:
+    """從 URL 下載圖片，回傳 (PIL Image 物件, 原始檔名)。"""
     response = requests.get(image_url, timeout=10)
     response.raise_for_status()
-    fetch_data = response.content
 
-    # 轉為 PIL Image 物件
-    download_img = PIL.Image.open(io.BytesIO(fetch_data))
+    image_bytes = response.content
+    image = PIL.Image.open(io.BytesIO(image_bytes))
 
-    # 取得原始檔名
-    download_img_name = image_url.split("/")[-1]
+    file_name = image_url.split("/")[-1]
 
-    return download_img, download_img_name
+    return image, file_name
 
 
 def get_raw_source_info(

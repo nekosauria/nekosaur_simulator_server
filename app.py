@@ -11,12 +11,12 @@ from model.factory.transform_model_factory import TransformModelFactory
 from model.factory.embedding_model_factory import EmbeddingModelFactory
 from util.common import common
 from worker.fetch_thecatapi_consumer import fetch_thecatapi_consumer
-
+from worker.image_daemon_process_consumer import image_daemon_process_consumer
 
 config = common.config
 logger = common.logger
 
-CONSUMERS = [fetch_thecatapi_consumer]
+CONSUMERS = [fetch_thecatapi_consumer,image_daemon_process_consumer]
 
 
 def create_app():

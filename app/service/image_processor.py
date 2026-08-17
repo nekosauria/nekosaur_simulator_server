@@ -17,7 +17,7 @@ class ImageProcessor:
     @staticmethod
     def save_image(req: SaveImageRequest) -> SaveImageResult:
 
-        base_dir = Path(config.get("image", req.category))
+        base_dir = Path(req.category)
         save_dir = base_dir
         if req.sub_dir:
             save_dir = base_dir / req.sub_dir

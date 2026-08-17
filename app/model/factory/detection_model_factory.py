@@ -7,7 +7,7 @@ from model.impl.torch_detection_model import TorchDetectionModel
 from model.impl.yolo_detection_model import YoloDetectionModel
 from model.interface.base_model_factory import BaseModelFactory
 from util.common import common
-from util.device import get_gpu_device, log_device_memory
+from util.torch_util import get_gpu_device, log_device_memory
 from util.step_timer import StepTimer
 
 logger = common.logger

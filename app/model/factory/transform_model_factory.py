@@ -7,7 +7,7 @@ from model.interface.base_transform_model import BaseTransformModel
 from model.impl.stable_diffusion_transform_model import StableDiffusionTransformModel
 from model.impl.sd_image_variations_transform_model import SDImageVariationsTransformModel
 from util.common import common
-from util.device import get_gpu_device, get_gpu_dtype, log_device_memory
+from util.torch_util import get_gpu_device, get_gpu_dtype, log_device_memory
 from util.step_timer import StepTimer
 
 logger = common.logger
