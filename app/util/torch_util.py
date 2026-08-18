@@ -23,110 +23,64 @@ def get_gpu_device() -> torch.device:
     """偵測目前可使用的硬體加速裝置。
 
     優先序：
-
-        NVIDIA / AMD ROCm (CUDA)
-            ->
-        Intel XPU
-            ->
-        Apple Silicon MPS
-            ->
-        CPU
-
-    統一回傳：
-
-        torch.device("cuda")
-        torch.device("xpu")
-        torch.device("mps")
-        torch.device("cpu")
+        NVIDIA / AMD ROCm (CUDA) -> Intel XPU -> Apple Silicon MPS -> CPU
 
     使用 lru_cache(maxsize=1)：
     - 第一次呼叫時實際偵測硬體
     - 後續呼叫直接回傳 cache
     - 同一個 Python process 內不會重複偵測
-
-    發生任何異常時，預設 fallback 到 CPU。
     """
-    try:
-        # ======================================================
-        # NVIDIA GPU / AMD ROCm
-        # ======================================================
-        #
-        # ROCm 在 PyTorch 中也是透過 torch.cuda API 使用。
-        #
+    selected_device = torch.device("cpu")
+    detail_msg = "CPU fallback"
 
+    try:
+        # 1. NVIDIA GPU / AMD ROCm (透過 torch.cuda API 使用)
         if torch.cuda.is_available():
             try:
                 device_name = torch.cuda.get_device_name(0)
+                vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
 
-                if (
-                    "amd" in device_name.lower()
-                    or "radeon" in device_name.lower()
-                ):
-                    logger.info(
-                        "Detected AMD GPU (ROCm) -> [%s] -> Using 'cuda'",
-                        device_name,
-                    )
+                if "amd" in device_name.lower() or "radeon" in device_name.lower():
+                    detail_msg = f"AMD GPU (ROCm) [{device_name}], VRAM: {vram_gb:.2f} GB"
                 else:
-                    logger.info(
-                        "Detected NVIDIA GPU (CUDA) -> [%s] -> Using 'cuda'",
-                        device_name,
-                    )
+                    detail_msg = f"NVIDIA GPU (CUDA) [{device_name}], VRAM: {vram_gb:.2f} GB"
 
             except Exception as name_err:
-                # 即使取得 GPU 名稱失敗，
-                # 只要 CUDA 可用仍然可以正常使用。
-                logger.warning(
-                    "CUDA is available, but failed to get device name: %s",
-                    name_err,
-                )
+                logger.warning("CUDA is available, but failed to get device properties: %s", name_err)
+                detail_msg = "CUDA device (Failed to get properties)"
 
-            return torch.device("cuda")
+            selected_device = torch.device("cuda")
 
-        # ======================================================
-        # Intel XPU
-        # ======================================================
+        # 2. Intel XPU (Arc / Flex)
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            selected_device = torch.device("xpu")
+            detail_msg = "Intel GPU (Arc/Flex)"
 
-        if hasattr(torch, "xpu") and torch.xpu.is_available():
-            logger.info(
-                "Detected Intel GPU (Arc/Flex) -> Using 'xpu'"
-            )
+        # 3. Apple Silicon / MPS
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            selected_device = torch.device("mps")
+            detail_msg = "Apple Silicon MPS Acceleration"
 
-            return torch.device("xpu")
+        # 4. CPU Fallback
+        else:
+            selected_device = torch.device("cpu")
+            detail_msg = "No GPU acceleration detected"
 
-        # ======================================================
-        # Apple Silicon / MPS
-        # ======================================================
+        # 印出最終選定硬體的 Summary Log
+        logger.info("=" * 60)
+        logger.info("[Device Init Summary] Selected Target Device: [%s]", selected_device)
+        logger.info("[Device Init Summary] Hardware Details: %s", detail_msg)
+        logger.info("=" * 60)
 
-        if (
-            hasattr(torch.backends, "mps")
-            and torch.backends.mps.is_available()
-        ):
-            logger.info(
-                "Detected Apple Silicon backend -> Using 'mps'"
-            )
-
-            return torch.device("mps")
-
-        # ======================================================
-        # CPU fallback
-        # ======================================================
-
-        logger.info(
-            "No GPU acceleration detected -> Falling back to 'cpu'"
-        )
-
-        return torch.device("cpu")
+        return selected_device
 
     except Exception as e:
         logger.error(
-            "Error occurred during GPU device detection: %s. "
-            "Defaulting to 'cpu'",
+            "Error occurred during GPU device detection: %s. Defaulting to 'cpu'",
             e,
             exc_info=True,
         )
-
         return torch.device("cpu")
-
 
 @lru_cache(maxsize=1)
 def get_gpu_dtype() -> torch.dtype:

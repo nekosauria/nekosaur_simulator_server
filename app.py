@@ -1,5 +1,6 @@
 import atexit
 import os
+from http.client import HTTPException
 
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -28,24 +29,42 @@ def create_app():
 
     # ======================================================================================================================
     # === 全域例外處理 (Global Error Handlers) ===
-    # 適用於全專案所有 Blueprint、Controller、Service 與 .py 檔案拋出的 Exception
     # ======================================================================================================================
+
+    # 業務邏輯自訂驗證失敗 (400)
     @app.errorhandler(ValueError)
     def handle_value_error(e):
-        logger.error(f"ValueError: {e}", exc_info=True)
+        logger.warning(f"Validation ValueError: {e}")
         return jsonify({"success": False, "error": str(e)}), 400
 
+    # 捕獲所有 HTTP 規範內的 Client/Server 異常 (4xx, 5xx)
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        # 4xx 客戶端錯誤：僅記 warning 或 info，並回傳原生的 4xx code 與 message
+        if e.code < 500:
+            logger.info(f"HTTP Client Error [{e.code}]: {e.description}")
+            return jsonify({"success": False, "error": e.description}), e.code
+
+        # HTTP 5xx 錯誤仍記錄 ERROR Log
+        logger.error(f"HTTP Server Error [{e.code}]: {e.description}", exc_info=True)
+        return jsonify({"success": False, "error": e.description}), e.code
+
+    # 捕獲未預期的非 HTTP Exception (Python Code Error -> 統一轉 500)
     @app.errorhandler(Exception)
     def handle_global_exception(e):
-        logger.error(f"Unhandled Exception: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error(f"Unhandled Python Exception: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Internal Server Error"}), 500
+
+    @app.route('/favicon.ico')
+    def favicon():
+        return '', 204
 
     @app.route("/", methods=["GET", "POST"])
     def index():
-        # 前後端分離 , flask 只負責傳 backend jsonx
-        return {"status": "Flask API Is Running", "message": "Hello World"}
+        return jsonify({"status": "Flask API Is Running", "message": "Hello World"})
 
     return app
+
 
 def init_stage(app_root_path):
     # 資料夾檢查並建立所需資料夾

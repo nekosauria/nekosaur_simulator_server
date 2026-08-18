@@ -83,6 +83,7 @@ set -e
 # 建立 Virtual Hosts (VHosts)
 echo "==> 建立 VHosts..."
 sudo rabbitmqctl add_vhost /nekosaur
+sudo rabbitmqctl add_vhost /nekosaur_test
 
 # 建立統一的服務帳號 ap
 echo "==> 建立使用者 ap..."
@@ -91,9 +92,11 @@ sudo rabbitmqctl add_user ap "your_password"
 # 將兩個 VHost 的權限都賦予 ap (配置、寫入、讀取皆為全開 ".*")
 echo "==> 設定 ap 存取兩個 VHost 的權限..."
 sudo rabbitmqctl set_permissions -p "/nekosaur" ap ".*" ".*" ".*"
+sudo rabbitmqctl set_permissions -p "/nekosaur_test" ap ".*" ".*" ".*"
 
 # (選用) 若有 admin 帳號，也一併授權方便 UI 監控
 sudo rabbitmqctl set_permissions -p "/nekosaur" admin ".*" ".*" ".*" || true
+sudo rabbitmqctl set_permissions -p "/nekosaur_test" admin ".*" ".*" ".*" || true
 
 # (選用) 刪除不需要的 guest user
 sudo rabbitmqctl delete_user guest

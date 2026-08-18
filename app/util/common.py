@@ -35,29 +35,32 @@ class Common:
         log_path = self._get_project_path(self._config.get("global", "log_path"))
         os.makedirs(log_path, exist_ok=True)
         log_name = self._config.get("global", "log_name")
-        log_mode = self._config.get("global", "log_mode")
         log_level = self._config.get("global", "log_level")
         log_path_name = os.path.join(log_path, log_name)
 
-        logging.basicConfig(
-            level=log_level,
-            filemode=log_mode,
-            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-            datefmt=log_date_format
-        )
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s', log_date_format)
 
         logger = logging.getLogger(__name__)
-        handler = TimedRotatingFileHandler(
+        logger.setLevel(log_level)
+        logger.propagate = False  # 不往 root logger 冒泡
+
+        # 一般 log，全部 level 寫進自己管理的檔案
+        file_handler = TimedRotatingFileHandler(
             filename=log_path_name,
             when="midnight",
             interval=1,
             backupCount=0,
             encoding="utf-8"
         )
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s', log_date_format)
-        handler.setFormatter(formatter)
-        handler.suffix = "%Y-%m-%d_%H-%M-%S.log"
-        logger.addHandler(handler)
+        file_handler.setFormatter(formatter)
+        file_handler.suffix = "%Y-%m-%d_%H-%M-%S.log"
+        logger.addHandler(file_handler)
+
+        # 只有 ERROR 以上才寫到 stderr（systemd 會導去 app_error.log）
+        stderr_handler = logging.StreamHandler()
+        stderr_handler.setLevel(logging.ERROR)
+        stderr_handler.setFormatter(formatter)
+        logger.addHandler(stderr_handler)
 
         return logger
 

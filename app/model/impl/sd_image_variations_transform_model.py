@@ -52,6 +52,7 @@ class SDImageVariationsTransformModel(BaseTransformModel):
     def load(self) -> None:
         self.pipe = StableDiffusionImageVariationPipeline.from_pretrained(
             str(self._model_path),
+            use_safetensors=False, # 允許讀取 .bin 權重
             torch_dtype=self.dtype,
             revision="v2.0",
             local_files_only=True,

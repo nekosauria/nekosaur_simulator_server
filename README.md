@@ -4,6 +4,8 @@
 
 > ✅ **開發進度**：核心程式碼已完成實作，並完成手動部署與單機環境功能測試，目前可在本機/單機環境順暢跑通完整流程。
 
+👉 **歡迎線上試用：** [https://simulator.nekosaur.com/](https://simulator.nekosaur.com/)
+
 ---
 
 ## 核心理念

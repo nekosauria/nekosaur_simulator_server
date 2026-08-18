@@ -41,7 +41,7 @@ lock_config = LockConfig(
 
 # 共用參數
 # server info
-web_base_url = config.get('server', 'web_base_url')
+web_base_url = config.get('server', 'web_dns_url')
 web_dns_url = config.get("server", "web_dns_url")
 upload_prefix = config.get("api", "nekosaur_server_upload_prefix")
 gpu_device = get_gpu_device()
@@ -230,12 +230,12 @@ def upload_image():
 # ======================================================================================================================
     response = ImageUploadResponse(
         # --- Origin Image ---
-        origin_image_path=f"{web_base_url}/{origin_image_entity.origin_path.as_posix()}",
+        origin_image_path=f"{web_dns_url}/{origin_image_entity.origin_path.as_posix()}",
         origin_image_md5_hash=origin_image_entity.md5_hash,
         origin_image_created_at=origin_image_entity.created_at,
 
         # --- Origin Detector ---
-        origin_detect_path=f"{web_base_url}/{origin_image_detection_entity.detect_path.as_posix()}",
+        origin_detect_path=f"{web_dns_url}/{origin_image_detection_entity.detect_path.as_posix()}",
         origin_detect_md5_hash=origin_image_detection_entity.md5_hash,
         origin_detect_model=origin_image_detection_entity.detect_model,
         origin_has_cat=origin_image_detection_entity.has_cat,
@@ -245,7 +245,7 @@ def upload_image():
         origin_detect_created_at=origin_image_detection_entity.created_at,
 
         # --- Similar Image ---
-        similar_image_path=f"{web_base_url}/{similar_image_entity.origin_path.as_posix()}",
+        similar_image_path=f"{web_dns_url}/{similar_image_entity.origin_path.as_posix()}",
         similar_image_md5_hash=similar_image_entity.md5_hash,
         similar_image_created_at=similar_image_entity.created_at,
         similar_distance=similar_image_embedding_entity.distance,
@@ -256,7 +256,7 @@ def upload_image():
         ),
 
         # --- Similar Detector ---
-        similar_detect_path=f"{web_base_url}/{similar_image_detection_entity.detect_path.as_posix()}",
+        similar_detect_path=f"{web_dns_url}/{similar_image_detection_entity.detect_path.as_posix()}",
         similar_detect_md5_hash=similar_image_detection_entity.md5_hash,
         similar_detect_model=similar_image_detection_entity.detect_model,
         similar_has_cat=similar_image_detection_entity.has_cat,
@@ -266,14 +266,14 @@ def upload_image():
         similar_similar_created_at=similar_image_detection_entity.created_at,
 
         # --- Origin Transform ---
-        origin_transform_path=f"{web_base_url}/{origin_transform_entity.transform_path.as_posix()}",
+        origin_transform_path=f"{web_dns_url}/{origin_transform_entity.transform_path.as_posix()}",
         origin_transform_md5_hash=origin_transform_entity.md5_hash,
         origin_transform_model=transform_model,
         origin_transform_is_preprocessed=origin_transform_entity.is_preprocessed,
         origin_transform_created_at=origin_transform_entity.created_at,
 
         # --- Similar Transform ---
-        similar_transform_path=f"{web_base_url}/{similar_transform_entity.transform_path.as_posix()}",
+        similar_transform_path=f"{web_dns_url}/{similar_transform_entity.transform_path.as_posix()}",
         similar_transform_md5_hash=similar_transform_entity.md5_hash,
         similar_transform_model=transform_model,
         similar_transform_is_preprocessed=similar_transform_entity.is_preprocessed,
